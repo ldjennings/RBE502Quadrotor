@@ -8,11 +8,11 @@ $$\begin{align*}
 \\ 
 \ddot z &= \frac{\cos\left(\phi \right)\,\cos\left(\theta \right)\,\left(u_{1}+u_{2}+u_{3}+u_{4}\right)}{m}-g 
 \\ 
-\dot\omega_1 &= \frac{l\,u_{2}-l\,u_{4}+I_{22}\,W_{2}\,W_{3}-I_{33}\,W_{2}\,W_{3}}{I_{11}} 
+\dot\omega_1 &= \frac{l\,u_{2}-l\,u_{4}+I_{22}\,\omega_{2}\,\omega_{3}-I_{33}\,\omega_{2}\,\omega_{3}}{I_{11}} 
 \\ 
-\dot \omega_2 &= -\frac{l\,u_{1}-l\,u_{3}+I_{11}\,W_{1}\,W_{3}-I_{33}\,W_{1}\,W_{3}}{I_{22}} 
+\dot \omega_2 &= -\frac{l\,u_{1}-l\,u_{3}+I_{11}\,\omega_{1}\,\omega_{3}-I_{33}\,\omega_{1}\,\omega_{3}}{I_{22}} 
 \\ 
-\dot \omega_3&= \frac{\sigma \,u_{1}-\sigma \,u_{2}+\sigma \,u_{3}-\sigma \,u_{4}+I_{11}\,W_{1}\,W_{2}-I_{22}\,W_{1}\,W_{2}}{I_{33}}
+\dot \omega_3&= \frac{\sigma \,u_{1}-\sigma \,u_{2}+\sigma \,u_{3}-\sigma \,u_{4}+I_{11}\,\omega_{1}\,\omega_{2}-I_{22}\,\omega_{1}\,\omega_{2}}{I_{33}}
 \end{align*}$$
 
 Common approach seems to be grouping the control inputs together in the following order:
@@ -23,7 +23,7 @@ $$\begin{bmatrix}\frac 1 m & \frac 1 m & \frac 1 m & \frac 1 m \\ 0 & \frac l {I
 This is full rank, so it is invertible, which is of the following form:
 
 $$\left(\begin{array}{cccc} \frac{1}{4\,m} & 0 & \frac{1}{2\,l_{22}} & \frac{1}{4\,l_{33}}\\ \frac{1}{4\,m} & \frac{1}{2\,l_{11}} & 0 & -\frac{1}{4\,l_{33}}\\ \frac{1}{4\,m} & 0 & -\frac{1}{2\,l_{22}} & \frac{1}{4\,l_{33}}\\ \frac{1}{4\,m} & -\frac{1}{2\,l_{11}} & 0 & -\frac{1}{4\,l_{33}} \end{array}\right)$$
-Given this inverse, we can calculate the individual values of the control inputs given the signals.
+Given this inverse, we can calculate the individual values of the control inputs g\frac{\partial }{\partial t}iven the signals.
 Which I verified and obtained through the following matlab script:
 ```MATLAB
 syms m l11 l22 l33 'positive'
@@ -44,11 +44,11 @@ This (along with some rearranging) transforms the above equations:
 $$ \begin{align*}
 \ddot z &= U_1 \frac{\cos\left(\phi \right)\,\cos\left(\theta \right)}{m} -g 
 \\ 
-\dot\omega_1 &= U_2 + W_2\,W_3\,\frac{I_{22}-I_{33}}{I_{11}} 
+\dot\omega_1 &= U_2 + \omega_2\,\omega_3\,\frac{I_{22}-I_{33}}{I_{11}} 
 \\ 
-\dot \omega_2 &= -U_3 - W_1\,W_3\,\frac{I_{11}-I_{33}}{I_{22}}  
+\dot \omega_2 &= -U_3 - \omega_1\,\omega_3\,\frac{I_{11}-I_{33}}{I_{22}}  
 \\ 
-\dot \omega_3&= U_4 + W_1\,W_2\,\frac{I_{11}-I_{22}}{I_{33}} 
+\dot \omega_3&= U_4 + \omega_1\,\omega_2\,\frac{I_{11}-I_{22}}{I_{33}} 
 \end{align*}$$
 
 
@@ -84,5 +84,17 @@ $$\begin{align*}0 &= (\ddot z_d + g - U_{eq} \frac{\cos\left(\phi \right)\,\cos\
 So we can write the full control law for z as follows:
 $$U_1(t) = (\ddot z+g + \lambda(\dot z_d-\dot z))\frac m{\cos\left(\phi \right)\,\cos\left(\theta \right)}  +k_D\,\frac {s(t)}{|s(t)| +\delta}$$
 
-The other terms can be similarly solved for:
+The other terms can be similarly solved for. Note that because I am controlling $\omega$, the euler angles are in reference to the body fixed frame, which will be denoted with a $_b$ notation. 
+
+
+Goal for tonight:
+- [ ] Calculate other three U's
+- [ ] If I finish that, get the force conversion figured out
+
+
+PROBLEM IS THAT NOTES DID NOT INCLUDE ACCELERATIONS FROM PREVIOUS FRAMES, MULTIPLY BY ADJOINT FROM PREVIOUS FRAME (FIRST WOULD BE MO1). 
+
+
+
+$$\dot T^{-1}\omega + T^{-1}\dot\omega$$
 
