@@ -16,10 +16,24 @@ $$\begin{align*}
 \end{align*}$$
 
 Common approach seems to be grouping the control inputs together in the following order:
-$$\begin{align}U_1 &= \frac{u_1 + u_2 + u_3 + u_4}m \\ U_2 &= \frac{l(u_2 - u_4)}{I_{11}} \\ U_3 &= \frac{l(u_1 - u_3)}{I_{22}} \\ U_4 &= \frac{\sigma(u_1 - u_2 + u_3 - u_4)}{I_{33}}\end{align}$$
+$$\begin{align}
+U_1 &= \frac{u_1 + u_2 + u_3 + u_4}m 
+\\ 
+U_2 &= \frac{l(u_2 - u_4)}{I_{11}} 
+\\
+U_3 &= -\frac{l(u_1 - u_3)}{I_{22}} 
+\\
+U_4 &= \frac{\sigma(u_1 - u_2 + u_3 - u_4)}{I_{33}}\end{align}$$
 For these, we can rewrite these as a matrix multiplication
 
-$$\begin{bmatrix}\frac 1 m & \frac 1 m & \frac 1 m & \frac 1 m \\ 0 & \frac l {I_{11}}& 0 & -\frac l {I_{11}} \\  \frac l {I_{22}}& 0 & -\frac l {I_{22}} & 0 \\ \frac \sigma {I_{33}} & -\frac \sigma {I_{33}} & \frac \sigma {I_{33}} & -\frac \sigma {I_{33}} \end{bmatrix} \begin{bmatrix}u_1 \\ u_2 \\ u_3 \\ u_4\end{bmatrix} = \begin{bmatrix}U_1 \\ U_2 \\ U_3 \\ U_4\end{bmatrix}$$
+$$\begin{bmatrix}\frac 1 m & \frac 1 m & \frac 1 m & \frac 1 m 
+\\
+0 & \frac l {I_{11}}& 0 & -\frac l {I_{11}} 
+\\
+-\frac l {I_{22}}& 0 & \frac l {I_{22}} & 0 
+\\
+\frac \sigma {I_{33}} & -\frac \sigma {I_{33}} & \frac \sigma {I_{33}} & -\frac \sigma {I_{33}} 
+\end{bmatrix} \begin{bmatrix}u_1 \\ u_2 \\ u_3 \\ u_4\end{bmatrix} = \begin{bmatrix}U_1 \\ U_2 \\ U_3 \\ U_4\end{bmatrix}$$
 This is full rank, so it is invertible, which is of the following form:
 
 $$\left(\begin{array}{cccc} \frac{1}{4\,m} & 0 & \frac{1}{2\,l_{22}} & \frac{1}{4\,l_{33}}\\ \frac{1}{4\,m} & \frac{1}{2\,l_{11}} & 0 & -\frac{1}{4\,l_{33}}\\ \frac{1}{4\,m} & 0 & -\frac{1}{2\,l_{22}} & \frac{1}{4\,l_{33}}\\ \frac{1}{4\,m} & -\frac{1}{2\,l_{11}} & 0 & -\frac{1}{4\,l_{33}} \end{array}\right)$$
@@ -46,7 +60,7 @@ $$ \begin{align*}
 \\ 
 \dot\omega_1 &= U_2 + \omega_2\,\omega_3\,\frac{I_{22}-I_{33}}{I_{11}} 
 \\ 
-\dot \omega_2 &= -U_3 - \omega_1\,\omega_3\,\frac{I_{11}-I_{33}}{I_{22}}  
+\dot \omega_2 &= U_3 - \omega_1\,\omega_3\,\frac{I_{11}-I_{33}}{I_{22}}  
 \\ 
 \dot \omega_3&= U_4 + \omega_1\,\omega_2\,\frac{I_{11}-I_{22}}{I_{33}} 
 \end{align*}$$
@@ -86,15 +100,60 @@ $$U_1(t) = (\ddot z+g + \lambda(\dot z_d-\dot z))\frac m{\cos\left(\phi \right)\
 
 The other terms can be similarly solved for. Note that because I am controlling $\omega$, the euler angles are in reference to the body fixed frame, which will be denoted with a $_b$ notation. 
 
+WE CAN just convert the 0 angle into the body frame at each timestep so that we can just deal with the body frame accelrations and other such stuff, no need to complicate it a lot. 
+We can also do the same process for the desired angular acceleration/velocity.
 
-Goal for tonight:
-- [ ] Calculate other three U's
-- [ ] If I finish that, get the force conversion figured out
+Solving for the other Control laws:
+$$\begin{align}e&=\phi_{b_d}-\phi_b \\ s &= (\dot \phi_{b_d}- \omega_1) + \lambda(\phi_{b_d}-\phi_b)
+\\ 
+\dot s &= (\ddot \phi_{b_d} - \dot \omega_1) + \lambda(\dot \phi_{b_d}-\omega_1)
+\\
+&= (\ddot \phi_{b_d} - U_2 - \omega_2\,\omega_3\,\frac{I_{22}-I_{33}}{I_{11}}) + \lambda(\dot \phi_{b_d}-\omega_1)
+\\
+\implies U_{eq\phi} &= (\ddot \phi_{b_d} - \omega_2\,\omega_3\,\frac{I_{22}-I_{33}}{I_{11}}) + \lambda(\dot \phi_{b_d}-\omega_1)\end{align}$$
+$$\begin{align}e&=\theta_{b_d}-\theta_b \\ s &= (\dot \theta_{b_d}- \omega_2) + \lambda(\theta_{b_d}-\theta_b)
+\\ 
+\dot s &= (\ddot \theta_{b_d} - \dot \omega_2) + \lambda(\dot \theta_{b_d}-\omega_2)
+\\
+&= (\ddot \theta_{b_d} -U_3 + \omega_1\,\omega_3\,\frac{I_{11}-I_{33}}{I_{22}}) + \lambda(\dot \theta_{b_d}-\omega_2)
+\\
+\implies U_{eq\theta} &= (\ddot \theta_{b_d} + \omega_1\,\omega_3\,\frac{I_{11}-I_{33}}{I_{22}}) + \lambda(\dot \theta_{b_d}-\omega_2)\end{align}$$
+$$\begin{align}e&=\psi_{b_d}-\psi_b \\ s &= (\dot \psi_{b_d}- \omega_3) + \lambda(\psi_{b_d}-\psi_b)
+\\ 
+\dot s &= (\ddot \psi_{b_d} - \dot \omega_3) + \lambda(\dot \psi_{b_d}-\omega_3)
+\\
+&= (\ddot \psi_{b_d} -U_4 - \omega_1\,\omega_2\,\frac{I_{11}-I_{22}}{I_{33}}) + \lambda(\dot \psi_{b_d}-\omega_3)
+\\
+\implies U_{eq\psi} &= (\ddot \psi_{b_d} - \omega_1\,\omega_2\,\frac{I_{11}-I_{22}}{I_{33}}) + \lambda(\dot \psi_{b_d}-\omega_3)\end{align}$$
 
 
-PROBLEM IS THAT NOTES DID NOT INCLUDE ACCELERATIONS FROM PREVIOUS FRAMES, MULTIPLY BY ADJOINT FROM PREVIOUS FRAME (FIRST WOULD BE MO1). 
+So for these, we need to find the desired position, velocity, and acceleration. There are two ways to do this: At each step, we generate a trajectory to our target point, which gives us those quantities, or we use some kind of PID controller to generate a signal that gets us to the point, which should work well enough for the kinematics. It's probably easier to just do the trajectory. 
+
+The other problem is that we can only really generate a trajectory in linear space, so how to we translate that into movements in the angles? 
+
+Also for the angles, we will have to set desired states in the inertial frame, and then translate that into the body frame. That shouldn't be too bad. I'm not sure how to do position, velocity is outlined in the quadrotor dynamics pdf, and for acceleration you can just take the derivative of that stuff:
+
+$$
+T = \begin{bmatrix}
+    1 & 0 & -\sin(\theta) \\
+    0 & \cos(\phi) & \sin(\phi)\cos(\theta) \\
+    0 & -\sin(\phi) & \cos(\phi)\cos(\theta)
+\end{bmatrix}
+$$
+$$\dot a = T\omega$$
+$$\ddot \alpha = \dot T\omega + T\dot\omega$$
 
 
+For position, chatgpt gave me this:
+To map an orientation defined in Euler angles in one coordinate frame to the same orientation in another coordinate frame, you typically follow these steps:
 
-$$\dot T^{-1}\omega + T^{-1}\dot\omega$$
+1. **Convert Euler Angles to a Rotation Matrix**: First, convert the Euler angles defining the orientation in the original frame to a rotation matrix. Euler angles can be converted to a rotation matrix using specific sequences, such as ZYX, XYZ, etc., depending on the convention used (intrinsic or extrinsic rotations).
+    
+2. **Apply a Transformation Matrix**: If the second frame is related to the first frame through a known transformation (rotation and/or translation), apply this transformation to the rotation matrix. This transformation matrix aligns the original frame with the new frame.
+    
+3. **Convert Back to Euler Angles**: Finally, convert the transformed rotation matrix back into Euler angles using the appropriate sequence and convention that applies to the second frame.
+    
 
+This process allows you to maintain the same orientation relative to the respective coordinate frames, even if the frames themselves are oriented differently in space.
+
+So using all of that, we can get appropriate desired states for the problem. 
