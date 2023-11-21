@@ -14,7 +14,7 @@ p = [g l m I mu sigma];
 
 % Initial conditions
 %     x y z phi theta psi Vx Vy Vz W1 W2 W3
-z0 = [0 0 1  .3    .2  .1  0  0  0  0  0  0]';
+z0 = [0 0 2  0    0  0  0  0  0  0  0  0]';
 
 
 r = [0; 0; 0];

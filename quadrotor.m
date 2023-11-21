@@ -22,18 +22,7 @@ R = [ cos(z(5))*cos(z(6)), sin(z(4))*sin(z(5))*cos(z(6)) - cos(z(4))*sin(z(6)), 
            
 
 % Adjusting thrust output based on feasible limits
-persistent K;
-if(isempty(K))
-    [A, B] = quadrotor_linearize(z, u,p);
-    %     x y z phi theta psi Vx Vy Vz W1 W2 W3
-    Q  = [1 1 1   5     5   5  2  2  2  5  5  5]';
-    K = lqr(A, B, diag(Q), eye(4));
-end
-zd = zeros(12,1);
-zd(3) = 1;
-
-e = zd - z;
-u = u + K*e;
+u = controller(t, z,p);
 
 u = max( min(u, p(7)), 0);
 
@@ -55,4 +44,27 @@ dz(4:6,1) = [ z(10) + z(12)*cos(z(4))*tan(z(5)) + z(11)*sin(z(4))*tan(z(5));
                       
 dz(7:9,1) = R*([0; 0; sum(u)] + r)/p(3) - [0; 0; p(1)];
 
-dz(10:12,1) = I\( rt + n - cross( z(10:12,1) , I * z(10:12,1) ) );
+dz(10:12,1) = I\( rt + n - cross( z(10:12,1) , I * z(10:12,1) ) ); 
+end
+
+function u = controller(t, Z, p)
+    zd = 2 -t/10; z = Z(3);
+    dzd = -1/10; dz = Z(9);
+    ddzd = 0; % ddz = dZ(9);
+    phi = Z(4); theta = Z(5);
+    g = p(1); m = p(3);
+    lambda = 2; Kz = 20; nZ = 1;
+
+    s = (dzd - dz) + lambda*(zd - z);
+
+    U1 = (ddzd + g + lambda*(zd-z))*m/(cos(phi)*cos(theta)) + Kz*s/(abs(s) + nZ);
+
+    u = repmat(U1/4, 4,1);
+
+
+    
+end
+
+function y = sat(x, lowerbound, upperbound)
+    y = max(min(x, upperbound), lowerbound);
+end
