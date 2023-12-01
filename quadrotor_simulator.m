@@ -14,7 +14,7 @@ p = [g l m I mu sigma];
 
 % Initial conditions
 %     x y z phi theta psi Vx Vy Vz W1 W2 W3
-z0 = [0 0 2  0    0  0  0  0  0  0  0  0]';
+z0 = [0 0 0  0    0  0  0  0  0  0  0  0]';
 
 
 r = [0; 0; 0];
@@ -23,13 +23,15 @@ u = ones(4,1) * (m*g)/4;
 
 
 %% Solving the initial-value problem
-t2 = 10;
+t2 = 5;
 t = linspace(0, t2, t2*200);
 
 [t,z] = ode45(@(t,z) quadrotor(t, z, u, p, r, n), t, z0);
 
 
 %% Plotting the results
+
+
 
 for i=1:4
     ax(i) = subplot(2,2,i,'NextPlot','Add','Box','on','XGrid','on','YGrid','on',...
@@ -63,7 +65,21 @@ title(ax(4), '\boldmath$\omega$','Interpreter','LaTeX','FontSize',14);
 
 
 %% Animation
+
+% Preallocate arrays for efficiency
+xd = zeros(size(t));
+yd = zeros(size(t));
+zd = zeros(size(t));
+
+% Compute the trajectory
+for k = 1:length(t)
+    xd(k) = 0.5 * cos(t(k)/2);
+    yd(k) = 0.5 * sin(t(k)/2);
+    zd(k) = 2 + t(k)/10;
+end
+
 animation_fig = figure;
+
 
 airspace_box_length = 4;
 
@@ -74,6 +90,8 @@ animation_axes = axes('Parent', animation_fig,...
     'Zlim',airspace_box_length*[0 1],...
     'box','on','Xgrid','on','Ygrid','on','Zgrid','on',...
     'TickLabelInterpreter','LaTeX','FontSize',14);
+
+plot3(xd, yd, zd, 'LineStyle', '-', 'Color', 'b', 'LineWidth', 2, 'Parent',animation_axes);
 
 view(animation_axes, 3);
 

@@ -17,7 +17,7 @@ $$\begin{align*}
 
 Common approach seems to be grouping the control inputs together in the following order:
 $$\begin{align}
-U_1 &= \frac{u_1 + u_2 + u_3 + u_4}m 
+U_1 &= u_1 + u_2 + u_3 + u_4 
 \\ 
 U_2 &= \frac{l(u_2 - u_4)}{I_{11}} 
 \\
@@ -26,7 +26,7 @@ U_3 &= -\frac{l(u_1 - u_3)}{I_{22}}
 U_4 &= \frac{\sigma(u_1 - u_2 + u_3 - u_4)}{I_{33}}\end{align}$$
 For these, we can rewrite these as a matrix multiplication
 
-$$\begin{bmatrix}\frac 1 m & \frac 1 m & \frac 1 m & \frac 1 m 
+$$\begin{bmatrix}1  & 1 & 1 & 1 
 \\
 0 & \frac l {I_{11}}& 0 & -\frac l {I_{11}} 
 \\
@@ -36,24 +36,23 @@ $$\begin{bmatrix}\frac 1 m & \frac 1 m & \frac 1 m & \frac 1 m
 \end{bmatrix} \begin{bmatrix}u_1 \\ u_2 \\ u_3 \\ u_4\end{bmatrix} = \begin{bmatrix}U_1 \\ U_2 \\ U_3 \\ U_4\end{bmatrix}$$
 This is full rank, so it is invertible, which is of the following form:
 
-$$\left(\begin{array}{cccc} \frac{1}{4\,m} & 0 & \frac{1}{2\,l_{22}} & \frac{1}{4\,l_{33}}\\ \frac{1}{4\,m} & \frac{1}{2\,l_{11}} & 0 & -\frac{1}{4\,l_{33}}\\ \frac{1}{4\,m} & 0 & -\frac{1}{2\,l_{22}} & \frac{1}{4\,l_{33}}\\ \frac{1}{4\,m} & -\frac{1}{2\,l_{11}} & 0 & -\frac{1}{4\,l_{33}} \end{array}\right)$$
-Given this inverse, we can calculate the individual values of the control inputs g\frac{\partial }{\partial t}iven the signals.
-Which I verified and obtained through the following matlab script:
+$$\left(\begin{array}{cccc} \frac{1}{4} & 0 & -\frac{I_{22}}{2\,l} & \frac{I_{33}}{4\,\sigma }\\ \frac{1}{4} & \frac{I_{11}}{2\,l} & 0 & -\frac{I_{33}}{4\,\sigma }\\ \frac{1}{4} & 0 & \frac{I_{22}}{2\,l} & \frac{I_{33}}{4\,\sigma }\\ \frac{1}{4} & -\frac{I_{11}}{2\,l} & 0 & -\frac{I_{33}}{4\,\sigma } \end{array}\right)$$
+Given this inverse, we can calculate the individual values of the control inputs given the signals. I verified and obtained that inverse through the following matlab script:
 ```MATLAB
-syms m l11 l22 l33 'positive'
+clc; clear all; close all;
+syms m I_11 I_22 I_33 l sigma 'positive'
 
 
-mat = [ m  m  m m;
-        0 l11  0 -l11;
-       l22  0  -l22 0;
-       l33 -l33 l33 -l33;];
+mat = [ 1  1  1 1;
+        0 l/I_11  0 -l/I_11;
+       -l/I_22  0  l/I_22 0;
+       sigma/I_33 -sigma/I_33 sigma/I_33 -sigma/I_33;];
 
 % Prints out 4
 rank(mat)
-% Prints out a valid 
+% Should print out a valid inverse matrix 
 latex(inv(mat))
 ```
-
 This (along with some rearranging) transforms the above equations:
 $$ \begin{align*}
 \ddot z &= U_1 \frac{\cos\left(\phi \right)\,\cos\left(\theta \right)}{m} -g 
@@ -126,7 +125,6 @@ $$\begin{align}e&=\psi_{b_d}-\psi_b \\ s &= (\dot \psi_{b_d}- \omega_3) + \lambd
 \\
 \implies U_{eq\psi} &= (\ddot \psi_{b_d} - \omega_1\,\omega_2\,\frac{I_{11}-I_{22}}{I_{33}}) + \lambda(\dot \psi_{b_d}-\omega_3)\end{align}$$
 
-
 So for these, we need to find the desired position, velocity, and acceleration. There are two ways to do this: At each step, we generate a trajectory to our target point, which gives us those quantities, or we use some kind of PID controller to generate a signal that gets us to the point, which should work well enough for the kinematics. It's probably easier to just do the trajectory. 
 
 The other problem is that we can only really generate a trajectory in linear space, so how to we translate that into movements in the angles? 
@@ -140,8 +138,8 @@ T = \begin{bmatrix}
     0 & -\sin(\phi) & \cos(\phi)\cos(\theta)
 \end{bmatrix}
 $$
-$$\dot a = T\omega$$
-$$\ddot \alpha = \dot T\omega + T\dot\omega$$
+$$\omega = T\dot a $$
+$$\dot \omega = \dot T\dot\alpha + T\ddot\alpha$$
 
 
 For position, chatgpt gave me this:
@@ -157,3 +155,34 @@ To map an orientation defined in Euler angles in one coordinate frame to the sam
 This process allows you to maintain the same orientation relative to the respective coordinate frames, even if the frames themselves are oriented differently in space.
 
 So using all of that, we can get appropriate desired states for the problem. 
+
+Potential solution to issues: currently it's using the intrinsic reference frames, which might not be suitable for what I want (I want it to move around the fixed reference frames from the original )
+
+Okay, what do I have:
+
+earth to body: intrinsic ZYX 
+supplied by the alpha part of the state vector
+
+earth to desired orientation: extrinsic:
+	- $\phi$: rotation about the y axis of the earth frame to the desired pose
+	- $\theta$: rotation about the x axis of the earth frame to the desired pose
+	- $\psi$: rotation about the z axis of the earth frame to the desired pose
+
+
+And what do I need to get:
+
+body to desired: extrinsic: more like angles from the x/y axes that I want:
+	- $\phi$: rotation about the y axis of the body frame to the desired pose
+	- $\theta$: rotation about the x axis of the body frame to the desired pose
+	- $\psi$: rotation about the z axis of the body frame to the desired pose
+
+
+
+https://ieeexplore.ieee.org/document/6557334
+https://ieeexplore.ieee.org/document/8244106
+
+
+
+
+
+
