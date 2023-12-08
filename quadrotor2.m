@@ -4,7 +4,7 @@
 
 
 
-classdef quadrotor2
+classdef quadrotor2 < handle
     properties
         % Properties of our quadrotor
         m           % mass
@@ -29,6 +29,8 @@ classdef quadrotor2
         c_yaw
         e_yaw
         n_yaw
+
+        Ur = 0;     % DO NOT TOUCH Something that is important for running the controller
         %K_3
     end
 
@@ -51,6 +53,7 @@ classdef quadrotor2
             % x_init
             Z = zeros(12, 1);
             % u_init
+            self.Ur = 0;
             omega = self.CalcOmega(init_omega, desired);
 
             for step = 0:time_steps
@@ -73,7 +76,7 @@ classdef quadrotor2
 
             U = self.RotorVelocityToU(omega);
 
-            Ur = U(5);
+            self.Ur = U(5);
 
             roll = Z(4);
             pitch = Z(5);
@@ -94,8 +97,8 @@ classdef quadrotor2
             y_ddot = 1/self.m*(cos(roll)*sin(pitch)*sin(yaw) + sin(roll)*cos(yaw))*U(1);
             z_ddot = 1/self.m*(cos(roll)*cos(pitch))*U(1) - self.g;
 
-            roll_ddot = q*r*((self.Iyy -self.Izz)/self.Ixx) + self.Jr/self.Ixx*q*Ur + self.l/self.Ixx*U(2);
-            pitch_ddot = p*r*((self.Izz -self.Ixx)/self.Iyy) - self.Jr/self.Iyy*p*Ur + self.l/self.Iyy*U(3);
+            roll_ddot = q*r*((self.Iyy -self.Izz)/self.Ixx) + self.Jr/self.Ixx*q*self.Ur + self.l/self.Ixx*U(2);
+            pitch_ddot = p*r*((self.Izz -self.Ixx)/self.Iyy) - self.Jr/self.Iyy*p*self.Ur + self.l/self.Iyy*U(3);
             yaw_ddot = p*q*((sefl.Ixx -self.Iyy)/self.Ixx) + self.C/self.Izz*U(4);
 
             dZ(7:12) = [x_ddot, y_ddot, z_ddot, roll_ddot, pitch_ddot, yaw_ddot]';
@@ -114,6 +117,7 @@ classdef quadrotor2
 
             U(5) = -omega(1) + omega(2) -omega(3) + omega(4);
         end
+
         function omega = UToRotorVelocity(self, U)
             % Conversion of the Control Inputs U to Rotor Speeds omega
 
@@ -125,22 +129,27 @@ classdef quadrotor2
                        -self.k,self.k,-self.k,self.k;]\U(1:4)).^(1/2);
         end
 
-        function omega = CalcOmega(self, Z, Z_dot, desired)
+        function Ur = GetUr(omega)
+            Ur = -omega(1) + omega(2) -omega(3) + omega(4);
+        end
+
+        function [omega] = CalcOmega(self, Z, Z_dot, desired)
             % Gets the needed rotor speeds Omega_i, i = 1,2,3,4
             % Desired is composed of the desired [Pose, Pose_dot,
             % Pose_ddot], where Pose is [x, y, z, roll, pitch, yaw]
 
             U = zeros(4, 1);
-            U(1) = self.ZController(Z, [desired(3), desired(9), desired(15)]);
-            U(2) = 0;
-            U(3) = 0;
-            U(4) = self.YawController(Z, [desired(6), desired(12), desired(18)]);
+            U(1) = self.ZController(Z, Z_dot, desired);
+            U(4) = self.YawController(Z, Z_dot, desired);
 
+            U(2) = self.XPitchController(Z, Z_dot, desired, U(1), self.Ur);
+            U(3) = self.YRollController(Z, Z_dot, desired, U(1), self.Ur);
+            
             omega = self.UToRotorVelocity(U);
-
+            
         end
 
-        function u = ZController(self, Z, Z_dot, z_desired)
+        function u = ZController(self, Z, Z_dot, desired)
             % Make a controller that allows the quadrotor to get to the desiried z
             % position
 
@@ -152,15 +161,15 @@ classdef quadrotor2
             d_z = 0;  % Assuming no distirbances, it should be zero
             %d_z = self.K_3*z_dot/self.m; 
 
-            z = Z(3);
-            z_dot = Z(9);
+            [~, ~, z, roll, pitch, ~, ~, ~, z_dot, ~, ~, ~, ~, ~, ~, ~, ~, ~] = self.DecomposeZ(Z, Z_dot);
+            [~, ~, z_desired, ~, ~, ~, ~, ~, z_desired_dot, ~, ~, ~, ~, ~, z_desired_ddot, ~, ~, ~] = self.DecomposeDesired(desired);
 
-            s_z = self.sliding_surface(z, z_desired(1), z_dot, z_desired(2), 1);
+            s_z = self.sliding_surface(z, z_desired, z_dot, z_desired_dot, 1);
 
-            u = self.m*(self.c_z*(z_desired(2) - z_dot) + z_desired(3) - self.g + d_z + self.s_dot(s_z, self.e_z, self.n_z) ) / (cos(roll)*cos(pitch));
+            u = self.m*(self.c_z*(z_desired_dot - z_dot) + z_desired_ddot - self.g + d_z + self.s_dot(s_z, self.e_z, self.n_z) ) / (cos(roll)*cos(pitch));
         end
 
-        function u = YawController(self, Z, Z_dot, yaw_desired)
+        function u = YawController(self, Z, Z_dot, desired)
             % Make a controller that allows the quadrotor to rotate to the desired
             % Yaw angle (rotation about the z axis)
 
@@ -171,23 +180,26 @@ classdef quadrotor2
             d_yaw = 0;  % Assuming no distirbances
             %d_yaw = self.K_6*r/I_z; 
 
-            yaw = Z(6);
-            yaw_dot = Z(12);
+            [~, ~, ~, ~, ~, yaw, ~, ~, ~, ~, ~, yaw_dot, ~, ~, ~, ~, ~, ~] = self.DecomposeZ(Z, Z_dot);
+            [~, ~, ~, ~, ~, yaw_desired, ~, ~, ~, ~, ~, yaw_desired_dot, ~, ~, ~, ~, ~, yaw_desired_ddot] = self.DecomposeDesired(desired);
 
-            s_yaw = self.sliding_surface(yaw, yaw_desired(1), yaw_dot, yaw_desired(2), 1);
+            s_yaw = self.sliding_surface(yaw, yaw_desired, yaw_dot, yaw_desired_dot, 1);
 
-            u = (self.Izz/self.C)*(self.c_yaw(yaw_desired(2) - yaw_dot) + yaw_desired(3) + d_yaw - self.s_dot(s_yaw, self.e_yaw, self.n_yaw));
+            u = (self.Izz/self.C)*(self.c_yaw(yaw_desired_dot - yaw_dot) + yaw_desired_ddot + d_yaw - self.s_dot(s_yaw, self.e_yaw, self.n_yaw));
         end
         
         %% Underactuated Controllers
         
-        function u = XPitchController(self, Z, Z_dot, desired, Ur)
+        function u = XPitchController(self, Z, Z_dot, desired, U1, Ur)
             % Make a controller that helps move the robot to the desired x, pictch location
             
-            c1; 
-            c2;
-            c3;
-            c4;
+            [x, ~, ~, roll, pitch, yaw, x_dot, ~, ~, ~, pitch_dot, ~, x_ddot, ~, ~, ~, ~, ~] = self.DecomposeZ(Z, Z_dot);
+            [x_desired, ~, ~, ~, pitch_desired, ~, x_desired_dot, ~, ~, ~, pitch_desired_dot, ~, x_desired_ddot, ~, ~, ~, pitch_desired_ddot, ~] = self.DecomposeDesired(desired);
+
+            c1 = 11*self.m/(U1*cos(roll)*cos(yaw));
+            c2 = 6*self.m/(U1*cos(roll)*cos(yaw));
+            c3 = 1;
+            c4 = 6;
 
             d3 = -p*r*(self.Izz -self.Ixx)/self.Iyy + self.Jr*p*Ur/self.Iyy;
 
@@ -197,13 +209,16 @@ classdef quadrotor2
 
         end
         
-        function u = YRollController(self, Z, Z_dot, desired, Ur)
+        function u = YRollController(self, Z, Z_dot, desired, U1, Ur)
             % Make a controller that helps move the robot to the desird y location
 
-            c5;
-            c6;
-            c7;
-            c8;
+            [~, y, ~, roll, ~, yaw, ~, y_dot, ~, roll_dot, ~, ~, ~, y_ddot, ~, ~, ~, ~] = self.DecomposeZ(Z, Z_dot);
+            [~, y_desired, ~, roll_desired, ~, ~, ~, y_desired_dot, ~, roll_desired_dot, ~, ~, ~, y_desired_ddot, ~, roll_desired_ddot, ~, ~] = self.DecomposeDesired(desired);
+
+            c5 = -11*self.m/(U1*cos(yaw));
+            c6 = -6*self.m/(U1*cos(yaw));
+            c7 = 1;
+            c8 = 6;
 
             d4 = -q*r(self.Iyy - self.Izz)/self.Ixx - self.Jr*q*Ur/self.Ixx;
 
@@ -239,6 +254,52 @@ classdef quadrotor2
             %                   quadrotor
         
             sd = - e*sign(s) - n*s;
+        end
+ 
+        function [x, y, z, roll, pitch, yaw, x_dot, y_dot, z_dot, roll_dot, pitch_dot, yaw_dot, x_ddot, y_ddot, z_ddot, roll_ddot, pitch_ddot, yaw_ddot] = DecomposeZ(self, Z, Z_dot)
+            x = Z(1);
+            y = Z(2);
+            z = Z(3);
+            roll = Z(4);
+            pitch = Z(5);
+            yaw = Z(6);
+
+            x_dot = Z(7);
+            y_dot = Z(8);
+            z_dot = Z(9);
+            roll_dot = Z(10);
+            pitch_dot = Z(11);
+            yaw_dot = Z(12);
+
+            x_ddot = Z_dot(7);
+            y_ddot = Z_dot(8);
+            z_ddot = Z_dot(9);
+            roll_ddot = Z_dot(10);
+            pitch_ddot = Z_dot(11);
+            yaw_ddot = Z_dot(12);
+        end
+
+        function [x_desired, y_desired, z_desired, roll_desired, pitch_desired, yaw_desired, x_desired_dot, y_desired_dot, z_desired_dot, roll_desired_dot, pitch_desired_dot, yaw_desired_dot, x_desired_ddot, y_desired_ddot, z_desired_ddot, roll_desired_ddot, pitch_desired_ddot, yaw_desired_ddot] = DecomposeDesired(self, d)
+            x_desired = d(1);
+            y_desired = d(2);
+            z_desired = d(3);
+            roll_desired = d(4);
+            pitch_desired = d(5);
+            yaw_desired = d(6);
+
+            x_desired_dot = d(7);
+            y_desired_dot = d(8);
+            z_desired_dot = d(9);
+            roll_desired_dot = d(10);
+            pitch_desired_dot = d(11);
+            yaw_desired_dot = d(12);
+
+            x_desired_ddot = d(13);
+            y_desired_ddot = d(14);
+            z_desired_ddot = d(15);
+            roll_desired_ddot = d(16);
+            pitch_desired_ddot = d(17);
+            yaw_desired_ddot = d(18);
         end
     end
 end
