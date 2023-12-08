@@ -52,6 +52,8 @@ classdef quadrotor2 < handle
 
             desired = zeros(18,1);
             desired(3) = 5;
+            desired(6) = 1;
+            
             % desired(6) = 3/duration;
             % desired(9) = self.g/2;
             
@@ -64,7 +66,6 @@ classdef quadrotor2 < handle
 
             for step = 0:time_steps
 
-                disp(desired)
                 % Sub the dynamics in, get the change in z, z_dot
                 Z_dot = self.CalcDynamics(Z,omega);
 
@@ -82,7 +83,36 @@ classdef quadrotor2 < handle
                 U = self.RotorVelocityToU(omega);
                 Utable(step+1, 1:5) = [step*delta_time, real(U(1:4))];
                 Omegatable(step+1, 1:5) = [step*delta_time, real(omega')];
+                t = Ztable(:, 1);
             end
+
+            for i=1:4
+                ax(i) = subplot(2,2,i,'NextPlot','Add','Box','on','XGrid','on','YGrid','on',...
+                            'Xlim',[t(1), t(end)],...
+                            'TickLabelInterpreter','LaTeX','FontSize',14);
+                xlabel('t','Interpreter','LaTeX','FontSize',14);        
+            end
+
+            plot(ax(1), t,Ztable(:,2:4), 'LineWidth', 1.5);
+            legend(ax(1), {'$x_1$', '$x_2$', '$x_3$'},... 
+                'Interpreter', 'LaTeX', 'FontSize', 14);
+            title(ax(1), '${\bf x}$','Interpreter','LaTeX','FontSize',14);
+            xlabel(ax(1), 't','Interpreter','LaTeX','FontSize',14);
+            
+            plot(ax(3), t, Ztable(:,5:7), 'LineWidth', 1.5);
+            legend(ax(3), {'$\phi$', '$\theta$', '$\psi$'},...
+                'Interpreter', 'LaTeX', 'FontSize', 14);
+            title(ax(3), '\boldmath$\alpha$','Interpreter','LaTeX','FontSize',14);
+            
+            plot(ax(2), t, Ztable(:,8:10), 'LineWidth', 1.5);
+            legend(ax(2), {'$\dot{x}_1$', '$\dot{x}_2$', '$\dot{x}_3$'},...
+                'Interpreter', 'LaTeX', 'FontSize', 14);
+            title(ax(2), '$\dot{\bf x}$','Interpreter','LaTeX','FontSize',14);
+            
+            plot(ax(4), t, Ztable(:,11:13), 'LineWidth', 1.5);
+            legend(ax(4), {'$\omega_1$', '$\omega_2$', '$\omega_3$'},...
+                'Interpreter', 'LaTeX', 'FontSize', 14);
+            title(ax(4), '\boldmath$\omega$','Interpreter','LaTeX','FontSize',14);
 
         end
         function dZ = CalcDynamics(self, Z, omega)
@@ -116,6 +146,8 @@ classdef quadrotor2 < handle
             yaw_ddot = p*q*((self.Ixx -self.Iyy)/self.Ixx) + self.C/self.Izz*U(4);
 
             dZ(7:12) = [x_ddot, y_ddot, z_ddot, roll_ddot, pitch_ddot, yaw_ddot];
+
+            
         end
 
         function U = RotorVelocityToU(self, omega)
@@ -159,8 +191,8 @@ classdef quadrotor2 < handle
             % Z_dot;
             % desired;
             U(1) = self.ZController(Z, Z_dot, desired);
-            % U(4) = self.YawController(Z, Z_dot, desired)
-
+            U(4) = self.YawController(Z, Z_dot, desired);
+    
             % Underactuated
             % U(2) = self.XPitchController(Z, Z_dot, desired, U(1), self.Ur);
             % U(3) = self.YRollController(Z, Z_dot, desired, U(1), self.Ur);
