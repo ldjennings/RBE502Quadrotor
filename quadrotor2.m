@@ -34,12 +34,12 @@ classdef quadrotor2 < handle
         % We should have information on the state vecotor Z defined as:
         % Z = [x, y, z, roll, pitch, yaw, x_dot, y_dot, z_dot, roll_dot, pitch_dot, yaw_dot]
         % Z_dot = [x_dot, y_dot, z_dot, roll_dot, pitch_dot, yaw_dot, x_ddot, y_ddot, z_ddot, roll_ddot, pitch_ddot, yaw_ddot]
-        function runSim(self)
+        function [Ztable, Utable, Omegatable] = runSim(self)
             % Is able to run a simulation of the quadrotor assuming that we
             % have a desired position we want to move to 
 
-            duration = 10;
-            delta_time = 0.2;
+            duration = 20;
+            delta_time = 0.1;
             time_steps = duration/delta_time;
 
             % dZ = zeros(12, 1); 
@@ -48,17 +48,28 @@ classdef quadrotor2 < handle
             Z = zeros(12, 1);
             % u_init
             self.Ur = 0;
-            omega = self.CalcOmega(init_omega, desired);
+            
 
             desired = zeros(18,1);
-            desired(3) = 2;
+            desired(3) = 5;
+            % desired(6) = 3/duration;
+            % desired(9) = self.g/2;
             
+
+            omega = self.CalcOmega(Z, zeros(12, 1), desired);
+            
+            Ztable = zeros(1, 13);
+            Utable = zeros(1, 5);
+            Omegatable = zeros(1, 5);
+
             for step = 0:time_steps
+
+                disp(desired)
                 % Sub the dynamics in, get the change in z, z_dot
-                dZ = self.CalcDynamics(Z,omega);
+                Z_dot = self.CalcDynamics(Z,omega);
 
                 % Calc the new z
-                Z = Z + dZ*delta_time;
+                Z = Z + Z_dot*delta_time;
 
                 % From the z, calc the new u
                 % desired = CalcDesired(time);
@@ -66,12 +77,17 @@ classdef quadrotor2 < handle
                 omega = self.CalcOmega(Z, Z_dot, desired);
 
                 % Store info (z, z_dot, u, time_step)
+                Ztable(step+1, 1:13) = [step*delta_time, real(Z')];
+
+                U = self.RotorVelocityToU(omega);
+                Utable(step+1, 1:5) = [step*delta_time, real(U(1:4))];
+                Omegatable(step+1, 1:5) = [step*delta_time, real(omega')];
             end
 
         end
         function dZ = CalcDynamics(self, Z, omega)
             % Outputs the change in the state
-
+            dZ = zeros(12, 1);
             U = self.RotorVelocityToU(omega);
 
             self.Ur = U(5);
@@ -88,7 +104,7 @@ classdef quadrotor2 < handle
             dZ(1:3) = Z(7:9);
             dZ(4:6) = [1, sin(roll)*tan(pitch), cos(roll)*tan(pitch);
                         0, cos(roll),            -sin(roll);
-                        0, sin(roll)*sec(pitch), cos(roll)*sec(pitch)]*Z(10:12);
+                        0, sin(roll)*sec(pitch), cos(roll)*sec(pitch);]*Z(10:12);
 
             % Linear And Angular Accelerations
             x_ddot = 1/self.m*(cos(roll)*sin(pitch)*cos(yaw) + sin(roll)*sin(yaw))*U(1);
@@ -97,9 +113,9 @@ classdef quadrotor2 < handle
 
             roll_ddot = q*r*((self.Iyy -self.Izz)/self.Ixx) + self.Jr/self.Ixx*q*self.Ur + self.l/self.Ixx*U(2);
             pitch_ddot = p*r*((self.Izz -self.Ixx)/self.Iyy) - self.Jr/self.Iyy*p*self.Ur + self.l/self.Iyy*U(3);
-            yaw_ddot = p*q*((sefl.Ixx -self.Iyy)/self.Ixx) + self.C/self.Izz*U(4);
+            yaw_ddot = p*q*((self.Ixx -self.Iyy)/self.Ixx) + self.C/self.Izz*U(4);
 
-            dZ(7:12) = [x_ddot, y_ddot, z_ddot, roll_ddot, pitch_ddot, yaw_ddot]';
+            dZ(7:12) = [x_ddot, y_ddot, z_ddot, roll_ddot, pitch_ddot, yaw_ddot];
         end
 
         function U = RotorVelocityToU(self, omega)
@@ -113,7 +129,7 @@ classdef quadrotor2 < handle
                        0, -d, 0, d;
                        -self.k,self.k,-self.k,self.k;]*omega.^2;
 
-            U(5) = -omega(1) + omega(2) -omega(3) + omega(4);
+            U(5) = self.GetUr(omega);
         end
 
         function omega = UToRotorVelocity(self, U)
@@ -127,7 +143,7 @@ classdef quadrotor2 < handle
                        -self.k,self.k,-self.k,self.k;]\U(1:4)).^(1/2);
         end
 
-        function Ur = GetUr(omega)
+        function Ur = GetUr(~, omega)
             Ur = -omega(1) + omega(2) -omega(3) + omega(4);
         end
 
@@ -139,8 +155,11 @@ classdef quadrotor2 < handle
             U = zeros(4, 1);
 
             % Fully Actuated
+            % Z;
+            % Z_dot;
+            % desired;
             U(1) = self.ZController(Z, Z_dot, desired);
-            U(4) = self.YawController(Z, Z_dot, desired);
+            % U(4) = self.YawController(Z, Z_dot, desired)
 
             % Underactuated
             % U(2) = self.XPitchController(Z, Z_dot, desired, U(1), self.Ur);
@@ -162,14 +181,15 @@ classdef quadrotor2 < handle
             d_z = 0;  % Assuming no distirbances, it should be zero
             %d_z = self.K_3*z_dot/self.m; 
 
-            c_z = 1;
+            c_z = 20;
 
             [~, ~, z, roll, pitch, ~, ~, ~, z_dot, ~, ~, ~, ~, ~, ~, ~, ~, ~] = self.DecomposeZ(Z, Z_dot);
             [~, ~, z_desired, ~, ~, ~, ~, ~, z_desired_dot, ~, ~, ~, ~, ~, z_desired_ddot, ~, ~, ~] = self.DecomposeDesired(desired);
 
-            s_z = self.sliding_surface(z, z_desired, z_dot, z_desired_dot, 1);
+            
+            s_z = self.sliding_surface(z, z_desired, z_dot, z_desired_dot, 22);
 
-            u = self.m*(c_z*(z_desired_dot - z_dot) + z_desired_ddot - self.g + d_z + self.s_dot(s_z, self.e(1), self.n(1)) ) / (cos(roll)*cos(pitch));
+            u = self.m*(c_z*(z_desired_dot - z_dot) + z_desired_ddot - self.g + d_z - self.s_dot(s_z, self.e(1), self.n(1)) ) / (cos(roll)*cos(pitch));
         end
 
         function u = YawController(self, Z, Z_dot, desired)
@@ -190,7 +210,7 @@ classdef quadrotor2 < handle
 
             s_yaw = self.sliding_surface(yaw, yaw_desired, yaw_dot, yaw_desired_dot, 1);
 
-            u = (self.Izz/self.C)*(c_yaw(yaw_desired_dot - yaw_dot) + yaw_desired_ddot + d_yaw - self.s_dot(s_yaw, self.e(2), self.n(2)));
+            u = (self.Izz/self.C)*(c_yaw*(yaw_desired_dot - yaw_dot) + yaw_desired_ddot + d_yaw - self.s_dot(s_yaw, self.e(2), self.n(2)));
         end
         
         %% Underactuated Controllers
@@ -257,8 +277,9 @@ classdef quadrotor2 < handle
             %                   quadrotor
             % n [const float] ##TODO Figure out what that actually means for this
             %                   quadrotor
-        
-            sd = - e*sign(s) - n*s;
+            saturated_s = min(0.1, max(-0.1, s));
+            sd = - e*saturated_s - n*s;
+            % sd = - e*sign(s) - n*s;
         end
  
         function [x, y, z, roll, pitch, yaw, x_dot, y_dot, z_dot, roll_dot, pitch_dot, yaw_dot, x_ddot, y_ddot, z_ddot, roll_ddot, pitch_ddot, yaw_ddot] = DecomposeZ(~, Z, Z_dot)
