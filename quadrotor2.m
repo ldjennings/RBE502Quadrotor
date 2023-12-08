@@ -51,7 +51,7 @@ classdef quadrotor2
             % x_init
             Z = zeros(12, 1);
             % u_init
-            omega = self.CalcOmega(desired);
+            omega = self.CalcOmega(init_omega, desired);
 
             for step = 0:time_steps
                 % Sub the dynamics in, get the change in z, z_dot
@@ -125,7 +125,7 @@ classdef quadrotor2
                        -self.k,self.k,-self.k,self.k;]\U(1:4)).^(1/2);
         end
 
-        function omega = CalcOmega(self, Z, desired)
+        function omega = CalcOmega(self, Z, Z_dot, desired)
             % Gets the needed rotor speeds Omega_i, i = 1,2,3,4
             % Desired is composed of the desired [Pose, Pose_dot,
             % Pose_ddot], where Pose is [x, y, z, roll, pitch, yaw]
@@ -140,7 +140,7 @@ classdef quadrotor2
 
         end
 
-        function u = ZController(self, Z, z_desired)
+        function u = ZController(self, Z, Z_dot, z_desired)
             % Make a controller that allows the quadrotor to get to the desiried z
             % position
 
@@ -157,10 +157,10 @@ classdef quadrotor2
 
             s_z = self.sliding_surface(z, z_desired(1), z_dot, z_desired(2), 1);
 
-            u = self.m*(self.c_z*(z_desired(2) - z_dot) + z_desired(3) + self.g + d_z + self.s_dot(s_z, self.e_z, self.n_z) ) / (cos(roll)*cos(pitch));
+            u = self.m*(self.c_z*(z_desired(2) - z_dot) + z_desired(3) - self.g + d_z + self.s_dot(s_z, self.e_z, self.n_z) ) / (cos(roll)*cos(pitch));
         end
 
-        function u = YawController(self, Z, yaw_desired)
+        function u = YawController(self, Z, Z_dot, yaw_desired)
             % Make a controller that allows the quadrotor to rotate to the desired
             % Yaw angle (rotation about the z axis)
 
@@ -176,17 +176,39 @@ classdef quadrotor2
 
             s_yaw = self.sliding_surface(yaw, yaw_desired(1), yaw_dot, yaw_desired(2), 1);
 
-            u = (self.Izz/self.C)*(self.c_yaw(yaw_desired(2) - yaw_dot) + yaw_desired(3) + d_yaw + self.s_dot(s_yaw, self.e_yaw, self.n_yaw));
+            u = (self.Izz/self.C)*(self.c_yaw(yaw_desired(2) - yaw_dot) + yaw_desired(3) + d_yaw - self.s_dot(s_yaw, self.e_yaw, self.n_yaw));
         end
         
         %% Underactuated Controllers
         
-        function u = XController()
-            % Make a controller that helps move the robot to the desired x location
+        function u = XPitchController(self, Z, Z_dot, desired, Ur)
+            % Make a controller that helps move the robot to the desired x, pictch location
+            
+            c1; 
+            c2;
+            c3;
+            c4;
+
+            d3 = -p*r*(self.Izz -self.Ixx)/self.Iyy + self.Jr*p*Ur/self.Iyy;
+
+            s = c1(x_desired_dot - x_dot) + c2(x_desired - x) + c3(pitch_desired_dot - pitch_dot) + c4(pitch_desired - pitch);
+            u = self.Iyy/self.l *(c1/c3*(x_desired_ddot - x_ddot) +c2/c3*(x_desired_dot - x_dot) + pitch_desired_ddot + c4/c3*(pitch_desired_dot - pitch_dot) + d3 - 1/c3*self.s_dot(s, self.e(3), self.n(3)));
+
+
         end
         
-        function u = YController()
+        function u = YRollController(self, Z, Z_dot, desired, Ur)
             % Make a controller that helps move the robot to the desird y location
+
+            c5;
+            c6;
+            c7;
+            c8;
+
+            d4 = -q*r(self.Iyy - self.Izz)/self.Ixx - self.Jr*q*Ur/self.Ixx;
+
+            s = c5(y_desired_dot - y_dot) + c6(y_desired - y) + c7(roll_desired_dot - roll_dot) + c8(roll_desired - roll);
+            u = self.Ixx/self.l*(c5/c7*(y_desired_ddot - y_ddot) +c6/c7*(y_desired_dot - y_dot) + roll_desired_ddot + c8/c7*(roll_desired_dot - roll_dot) + d4 - 1/c7*self.s_dot(s, self.e(4), self.n(4)));
         end
 
         %% Supporting Functions
