@@ -3,17 +3,6 @@
 % multiplied by time will describe the change in the state z.... 
 
 
-% if im not missunderstanding, the simulation should take the change in the
-% state z_dot, multiply it by some delta_time, and that would cause a new
-% change a new change in z. Based on the state, I also assume that we need
-% to update the input u in the same step. So tldr we need to 
-
-% be able to output the change in state z_dot given state and input
-% variables
-
-% have something that can update the input U
-
-
 
 classdef quadrotor2
     properties
@@ -125,6 +114,16 @@ classdef quadrotor2
 
             U(5) = -omega(1) + omega(2) -omega(3) + omega(4);
         end
+        function omega = UToRotorVelocity(self, U)
+            % Conversion of the Control Inputs U to Rotor Speeds omega
+
+            d = self.l*self.b;
+            
+            omega =  ([self.b,self.b,self.b,self.b;
+                       d, 0, -d, 0;
+                       0, -d, 0, d;
+                       -self.k,self.k,-self.k,self.k;]\U(1:4)).^(1/2);
+        end
 
         function omega = CalcOmega(self, Z, desired)
             % Gets the needed rotor speeds Omega_i, i = 1,2,3,4
@@ -133,7 +132,11 @@ classdef quadrotor2
 
             U = zeros(4, 1);
             U(1) = self.ZController(Z, [desired(3), desired(9), desired(15)]);
-            U(4) = self.ZController(Z, [desired(3), desired(9), desired(15)]);
+            U(2) = 0;
+            U(3) = 0;
+            U(4) = self.YawController(Z, [desired(6), desired(12), desired(18)]);
+
+            omega = self.UToRotorVelocity(U);
 
         end
 
@@ -145,7 +148,6 @@ classdef quadrotor2
             % Z_dot [1x12 State Vector] The deriviative of the state of the quadrotor
             % z_desired [1x3 Vector] Represents the z desired [position, velocity, acceleration]
 
-            
             % This should be the disterbances in the system
             d_z = 0;  % Assuming no distirbances, it should be zero
             %d_z = self.K_3*z_dot/self.m; 
@@ -158,7 +160,7 @@ classdef quadrotor2
             u = self.m*(self.c_z*(z_desired(2) - z_dot) + z_desired(3) + self.g + d_z + self.s_dot(s_z, self.e_z, self.n_z) ) / (cos(roll)*cos(pitch));
         end
 
-        function u = YawContoller(self, Z, yaw_desired)
+        function u = YawController(self, Z, yaw_desired)
             % Make a controller that allows the quadrotor to rotate to the desired
             % Yaw angle (rotation about the z axis)
 
@@ -174,7 +176,7 @@ classdef quadrotor2
 
             s_yaw = self.sliding_surface(yaw, yaw_desired(1), yaw_dot, yaw_desired(2), 1);
 
-            u = (I_z/C)*(self.c_yaw(yaw_desired(2) - yaw_dot) + yaw_desired(3) + d_yaw + self.s_dot(s_yaw, self.e_yaw, self.n_yaw));
+            u = (self.Izz/self.C)*(self.c_yaw(yaw_desired(2) - yaw_dot) + yaw_desired(3) + d_yaw + self.s_dot(s_yaw, self.e_yaw, self.n_yaw));
         end
         
         %% Underactuated Controllers
