@@ -23,7 +23,6 @@ R = [ cos(z(5))*cos(z(6)), sin(z(4))*sin(z(5))*cos(z(6)) - cos(z(4))*sin(z(6)), 
 
 % Adjusting thrust output based on feasible limits
 u = controller(t, z,p);
-
 u = max( min(u, p(7)), 0);
 
 
@@ -52,25 +51,32 @@ function u = controller(t, Z, p)
     % zd =    2 + t/10; z = Z(3); dzd =         1/10; dz = Z(9); ddzd =           0;
     % yd = .5*sin(t/2); y = Z(2); dyd =   cos(t/2)/4; dy = Z(8); ddyd = -sin(t/2)/8;
     % xd = .5*cos(t/2); x = Z(1); dxd =  -sin(t/2)/4; dx = Z(7); ddxd = -cos(t/2)/8;
-    zd =    t/10; z = Z(3); dzd =         1/10; dz = Z(9); ddzd =           0;
-    yd = 0; y = Z(2); dyd =   0; dy = Z(8); ddyd = 0;
-    xd = 0; x = Z(1); 0; dxd =   1/10; dx = Z(7); 0; ddxd = 0;
+    zd = 1; z = Z(3); dzd = 0; dz = Z(9); ddzd = 0;
+    yd = 0; y = Z(2); dyd = 0; dy = Z(8); ddyd = 0;
+    xd = 0; x = Z(1); dxd = 0; dx = Z(7); ddxd = 0;
     
     phi = Z(4); theta = Z(5); psi = Z(6);
-    w1 = Z(10); w2 = Z(11);   w3 = Z(12);
+    % w1 = Z(10); w2 = Z(11);   w3 = Z(12);
+    W = Z(10:12);
+
+    T = [1 0 -sin(theta);
+         0 cos(phi) sin(phi)*cos(theta);
+         0 -sin(phi) cos(theta)*cos(theta)];
+    aDot = T\W;
+    dphi = aDot(1); dtheta = aDot(2); dpsi = aDot(3);
 
     g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
 
-    z_lambda = 2; z_K = 20; z_n = 1;
-    kp = 70;
-    kd = 20;
+    z_lambda = 1; z_K = 1; z_n = 1;
+    kp = 1;
+    kd = 1;
 
-    %   phi_lambda = 1;   phi_K = 1;   phi_n = 1;
-    % theta_lambda = 1; theta_K = 1; theta_n = 1;
-    %   psi_lambda =  2;   psi_K =  20;   psi_n = 1;
-      phi_lambda = 10;   phi_K = 200;   phi_n = 1;
-    theta_lambda = 10; theta_K = 200; theta_n = 1;
-      psi_lambda =  2;   psi_K =  20;   psi_n = 1;
+    phi_lambda   = .5; phi_K   =  1; phi_n   = 1;
+    theta_lambda = .5; theta_K =  1; theta_n = 1;
+    psi_lambda   = 1; psi_K   = 1; psi_n   = 1;
+    % phi_lambda   = 5; phi_K   = 100; phi_n   = .3;
+    % theta_lambda = 5; theta_K = 100; theta_n = .3;
+    % psi_lambda   =  5; psi_K   =  100; psi_n   = .3;
 
     sz = (dzd - dz) + z_lambda*(zd - z);
 
@@ -81,40 +87,42 @@ function u = controller(t, Z, p)
 	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-1,1));
 
 
-    phid = asin(sat(-Fy / U1,-1,1));
-    thetad = asin(sat( Fx / U1,-1,1));
+    degMax = 20 *pi/180;
+
+    phid = asin(sat(-Fy / U1,-degMax,degMax));
+    thetad = asin(sat( Fx / U1,-degMax,degMax));
     psid = 0;
 
     
 
 
-    % ephi = phi - phid;
-    % etheta = theta - thetad;
-    % epsi = psi -psid;
+    ephi   = phid   - phi;
+    etheta = thetad - theta;
+    epsi   = psid   - psi;
 
 
-    esd = [phid thetad psid];
-    esb = [phi theta psi];
-    ebd = space_to_body(esb, esd);
-
-    ephi = wrapToPi(0 - ebd(1));
-    etheta = wrapToPi(0 - ebd(2));
-    epsi = wrapToPi(0 - ebd(3));
+    % esd = [phid thetad psid];
+    % esb = [phi theta psi];
+    % ebd = space_to_body(esb, esd);
+    % 
+    % ephi = wrapToPi(0 - ebd(1));
+    % etheta = wrapToPi(0 - ebd(2));
+    % epsi = wrapToPi(0 - ebd(3));
 
 
 
     % Phi controller 
-    sphi = (0 - w1) + phi_lambda*ephi;
-    U2 = (0 - w2*w3*(I22-I33)/I11) + phi_lambda*(0 - w1) + ...
+    sphi = (0 - dphi) + phi_lambda*ephi;
+    U2 = (0 - dtheta*dpsi*(I22-I33)/I11) + phi_lambda*(0 - dphi) + ...
      phi_K*sphi/(abs(sphi) + phi_n);
 
     % Theta controller 
-    stheta = (0 - w2) + theta_lambda*etheta;
-    U3 = (0 + w1*w3*(I11-I33)/I22) + theta_lambda*(0 - w2) + ...
+    stheta = (0 - dtheta) + theta_lambda*etheta;
+    U3 = (0 + dphi*dpsi*(I11-I33)/I22) + theta_lambda*(0 - dtheta) + ...
          theta_K*stheta/(abs(stheta) + theta_n);
 
-    spsi = (0 - w3) + psi_lambda*epsi;
-    U4 = (0 - w1*w2*(I11-I22)/I33) + psi_lambda*(0 - w3) + ...
+    spsi = (0 - dpsi) + psi_lambda*epsi;
+    U4 = (0 - dphi*dtheta*(I11-I22)/I33) + psi_lambda*(0 - dpsi) + ...
         + psi_K*spsi/(abs(spsi) + psi_n);
 
     U = [U1 U2 U3 U4]';
@@ -129,7 +137,7 @@ function u = controller(t, Z, p)
          -length_22         0 length_22          0;
            sigma_33 -sigma_33  sigma_33 -sigma_33;];
 
-    u = A\U;  
+    u = A\U;
 
     % u = repmat(U1/4,4,1)
 end
