@@ -14,16 +14,16 @@ p = [g l m I mu sigma];
 
 % Initial conditions
 %     x y z phi theta psi Vx Vy Vz W1 W2 W3
-z0 = [0 .3  1  0    0  0  0  0  0  0  0  0]';
+z0 = [0 0  1  0    0  0  0  0  0  0  0  0]';
 
 
-r = [0; 0; 0];
-n = [0; 0; 0];
+r = [0; 0; 0;];
+n = [0; 0; 0;];
 u = ones(4,1) * (m*g)/4;
 
 
 %% Solving the initial-value problem
-t2 = 5;
+t2 = 20;
 t = linspace(0, t2, t2*200);
 
 [t,z] = ode45(@(t,z) quadrotor(t, z, u, p, r, n), t, z0);
@@ -46,21 +46,25 @@ legend(ax(1), {'$x_1$', '$x_2$', '$x_3$'},...
     'Interpreter', 'LaTeX', 'FontSize', 14);
 title(ax(1), '${\bf x}$','Interpreter','LaTeX','FontSize',14);
 xlabel(ax(1), 't','Interpreter','LaTeX','FontSize',14);
+grid on;
 
 plot(ax(3), t, z(:,4:6), 'LineWidth', 1.5);
 legend(ax(3), {'$\phi$', '$\theta$', '$\psi$'},...
     'Interpreter', 'LaTeX', 'FontSize', 14);
 title(ax(3), '\boldmath$\alpha$','Interpreter','LaTeX','FontSize',14);
+grid on;
 
 plot(ax(2), t, z(:,7:9), 'LineWidth', 1.5);
 legend(ax(2), {'$\dot{x}_1$', '$\dot{x}_2$', '$\dot{x}_3$'},...
     'Interpreter', 'LaTeX', 'FontSize', 14);
 title(ax(2), '$\dot{\bf x}$','Interpreter','LaTeX','FontSize',14);
+grid on;
 
 plot(ax(4), t, z(:,10:12), 'LineWidth', 1.5);
 legend(ax(4), {'$\omega_1$', '$\omega_2$', '$\omega_3$'},...
     'Interpreter', 'LaTeX', 'FontSize', 14);
 title(ax(4), '\boldmath$\omega$','Interpreter','LaTeX','FontSize',14);
+grid on;
 
 
 

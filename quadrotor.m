@@ -48,12 +48,12 @@ end
 
 function u = controller(t, Z, p)
     % Trajectory
-    % zd =    2 + t/10; z = Z(3); dzd =         1/10; dz = Z(9); ddzd =           0;
-    % yd = .5*sin(t/2); y = Z(2); dyd =   cos(t/2)/4; dy = Z(8); ddyd = -sin(t/2)/8;
-    % xd = .5*cos(t/2); x = Z(1); dxd =  -sin(t/2)/4; dx = Z(7); ddxd = -cos(t/2)/8;
-    zd = 1; z = Z(3); dzd = 0; dz = Z(9); ddzd = 0;
-    yd = 0; y = Z(2); dyd = 0; dy = Z(8); ddyd = 0;
-    xd = 0; x = Z(1); dxd = 0; dx = Z(7); ddxd = 0;
+    zd =    2 + t/10; z = Z(3); dzd =         1/10; dz = Z(9); ddzd =           0;
+    yd = .5*sin(t/2); y = Z(2); dyd =   cos(t/2)/4; dy = Z(8); ddyd = -sin(t/2)/8;
+    xd = .5*cos(t/2); x = Z(1); dxd =  -sin(t/2)/4; dx = Z(7); ddxd = -cos(t/2)/8;
+    % zd = 1; z = Z(3); dzd = 0; dz = Z(9); ddzd = 0;
+    % yd = 0; y = Z(2); dyd = 0; dy = Z(8); ddyd = 0;
+    % xd = 0; x = Z(1); dxd = 0; dx = Z(7); ddxd = 0;
     
     phi = Z(4); theta = Z(5); psi = Z(6);
     % w1 = Z(10); w2 = Z(11);   w3 = Z(12);
@@ -67,12 +67,12 @@ function u = controller(t, Z, p)
 
     g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
 
-    z_lambda = 1; z_K = 1; z_n = 1;
+    z_lambda = 1; z_K = 3; z_n = 1;
     kp = 1;
-    kd = 1;
+    kd = 2.5;
 
-    phi_lambda   = .5; phi_K   =  1; phi_n   = 1;
-    theta_lambda = .5; theta_K =  1; theta_n = 1;
+    phi_lambda   = 2;          phi_K   =  8;     phi_n   = 1;
+    theta_lambda = phi_lambda; theta_K =  phi_K; theta_n = 1;
     psi_lambda   = 1; psi_K   = 1; psi_n   = 1;
     % phi_lambda   = 5; phi_K   = 100; phi_n   = .3;
     % theta_lambda = 5; theta_K = 100; theta_n = .3;
@@ -80,11 +80,11 @@ function u = controller(t, Z, p)
 
     sz = (dzd - dz) + z_lambda*(zd - z);
 
-    U1 = (ddzd + g + z_lambda*(zd-z))*m/(cos(phi)*cos(theta)) + z_K*sz/(abs(sz) + z_n);
+    U1 = ((ddzd + g + z_lambda*(zd-z)) + z_K*sz/(abs(sz) + z_n))*m/(cos(phi)*cos(theta));
 
-
-    Fx = m * (ddxd + kd * (dxd - dx) + kp * sat(xd - x,-1,1));
-	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-1,1));
+    Emax = 1.1;
+    Fx = m * (ddxd + kd * (dxd - dx) + kp * sat(xd - x,-Emax,Emax));
+	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-Emax,Emax));
 
 
     degMax = 20 *pi/180;
