@@ -60,7 +60,7 @@ function u = controller(t, Z, p)
  
     [Pnext, V, ~] = predictNextState(yt);
     
-    Ka = 0;
+    Ka = .5;
     xd = Pnext(1); dxd =  V(1); ddxd = Ka*sat(xd - x, -1, 1);
     yd = Pnext(2); dyd =  V(2); ddyd = Ka*sat(yd - y, -1, 1);
     zd = Pnext(3); dzd =  V(3); ddzd = Ka*sat(zd - z, -1, 1);
@@ -83,11 +83,11 @@ function u = controller(t, Z, p)
     g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
 
 
-    z_lambda = 1; z_K = 3; z_n = 1;
+    z_lambda = .3; z_K = 6; z_n = .5;
     kp = 1;
-    kd = 2.5;
+    kd = 2;
 
-    phi_lambda   = 2;          phi_K   =  8;     phi_n   = 1;
+    phi_lambda   = 1.25;          phi_K   =  3;     phi_n   = 1;
     theta_lambda = phi_lambda; theta_K =  phi_K; theta_n = 1;
     psi_lambda   = 1; psi_K   = 1; psi_n   = 1;
 
@@ -96,12 +96,12 @@ function u = controller(t, Z, p)
 
     U1 = ((ddzd + g + z_lambda*(zd-z)) + z_K*sz/(abs(sz) + z_n))*m/(cos(phi)*cos(theta));
 
-    Emax = 1;
+    Emax = 1.5;
     Fx = m * (ddxd + kd * (dxd - dx) + kp * sat(xd - x,-Emax,Emax));
 	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-Emax,Emax));
 
 
-    degMax = 30 * pi/180;
+    degMax = 35 * pi/180;
 
     phid = asin(sat(-Fy / U1,-degMax,degMax));
     thetad = asin(sat( Fx / U1,-degMax,degMax));
@@ -145,7 +145,6 @@ end
 function [p, v, a] = predictNextState(P1)
     persistent previous2;
     if isempty(previous2)
-        fprintf("I'm empty!\n")
         previous2 = repmat(P1, 1, 2);
     end
 
