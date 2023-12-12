@@ -22,7 +22,21 @@ R = [ cos(z(5))*cos(z(6)), sin(z(4))*sin(z(5))*cos(z(6)) - cos(z(4))*sin(z(6)), 
            
 
 % Adjusting thrust output based on feasible limits
-u = controller(t, z,p);
+persistent captured;
+if isempty(captured)
+    captured = false;
+end
+
+captured = captured || isCaptured(UAV_Trajectory(t), z);
+
+
+if captured
+    fprintf("UAV captured\n")
+    u = intercept_controller(t, z,p);
+else
+    u = intercept_controller(t, z,p);
+end
+
 u = max( min(u, p(7)), 0);
 
 
@@ -46,43 +60,39 @@ dz(7:9,1) = R*([0; 0; sum(u)] + r)/p(3) - [0; 0; p(1)];
 dz(10:12,1) = I\( rt + n - cross( z(10:12,1) , I * z(10:12,1) ) ); 
 end
 
-function u = controller(t, Z, p)
-    % Trajectory
-    % zd =    2 + t/10; z = Z(3); dzd =         1/10; dz = Z(9); ddzd =           0;
-    % yd = .5*sin(t/2); y = Z(2); dyd =   cos(t/2)/4; dy = Z(8); ddyd = -sin(t/2)/8;
-    % xd = .5*cos(t/2); x = Z(1); dxd =  -sin(t/2)/4; dx = Z(7); ddxd = -cos(t/2)/8;
+function u = intercept_controller(t, Z, p)
+    %% Extracting Parameters
+    g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
+
     x = Z(1); dx = Z(7);
     y = Z(2); dy = Z(8);
     z = Z(3); dz = Z(9);
     
+    phi = Z(4); theta = Z(5); psi = Z(6);
+    [dphi, dtheta, dpsi] = calcAngV(Z(10:12), Z(4:6));
 
+    %% Defining desired kinematics
     yt = UAV_Trajectory(t);
  
-    [Pnext, V, ~] = predictNextState(yt);
+    % [Pnext, ~, ~] = predictNextState(yt);
+    % 
+    % Ka = .5;
+    % 
+    % xd = Pnext(1); dxd =  0; ddxd = Ka*sat(xd - x, -1, 1);
+    % yd = Pnext(2); dyd =  0; ddyd = Ka*sat(yd - y, -1, 1);
+    % zd = Pnext(3); dzd =  0; ddzd = Ka*sat(zd - z, -1, 1);
+
+    [V, A] = UAV_derivatives(t);
+
+    xd = yt(1); dxd =  V(1); ddxd = A(1);
+    yd = yt(2); dyd =  V(2); ddyd = A(2);
+    zd = yt(3); dzd =  V(3); ddzd = A(3);
+
+ 
     
-    Ka = .5;
-    xd = Pnext(1); dxd =  V(1); ddxd = Ka*sat(xd - x, -1, 1);
-    yd = Pnext(2); dyd =  V(2); ddyd = Ka*sat(yd - y, -1, 1);
-    zd = Pnext(3); dzd =  V(3); ddzd = Ka*sat(zd - z, -1, 1);
-
-
-    if(isCaptured(yt, Z))
-        fprintf("UAV captured\n")
-    end
     
-    phi = Z(4); theta = Z(5); psi = Z(6);
-    % w1 = Z(10); w2 = Z(11);   w3 = Z(12);
-    W = Z(10:12);
-
-    T = [1 0 -sin(theta);
-         0 cos(phi) sin(phi)*cos(theta);
-         0 -sin(phi) cos(theta)*cos(theta)];
-    aDot = T\W;
-    dphi = aDot(1); dtheta = aDot(2); dpsi = aDot(3);
-
-    g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
-
-
+    %% Defining Controller Gains
+    
     z_lambda = .3; z_K = 6; z_n = .5;
     kp = 1;
     kd = 2;
@@ -91,7 +101,7 @@ function u = controller(t, Z, p)
     theta_lambda = phi_lambda; theta_K =  phi_K; theta_n = 1;
     psi_lambda   = 1; psi_K   = 1; psi_n   = 1;
 
-
+    %% Linear Position Controls
     sz = (dzd - dz) + z_lambda*(zd - z);
 
     U1 = ((ddzd + g + z_lambda*(zd-z)) + z_K*sz/(abs(sz) + z_n))*m/(cos(phi)*cos(theta));
@@ -100,7 +110,8 @@ function u = controller(t, Z, p)
     Fx = m * (ddxd + kd * (dxd - dx) + kp * sat(xd - x,-Emax,Emax));
 	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-Emax,Emax));
 
-
+    
+    %% Orientation Controls
     degMax = 35 * pi/180;
 
     phid = asin(sat(-Fy / U1,-degMax,degMax));
@@ -127,9 +138,9 @@ function u = controller(t, Z, p)
         + psi_K*spsi/(abs(spsi) + psi_n);
 
     U = [U1 U2 U3 U4]';
+    
 
-
-
+    %% Calculating individual control inputs
     length_11 = l/I11;
     length_22 = l/I22;
     sigma_33 = sigma/I33;
@@ -161,6 +172,16 @@ function [p, v, a] = predictNextState(P1)
 
 end
 
+
+
+function [dphi, dtheta, dpsi] = calcAngV(W, alpha)
+    phi = alpha(1); theta = alpha(2); 
+    T = [1 0 -sin(theta);
+         0 cos(phi) sin(phi)*cos(theta);
+         0 -sin(phi) cos(theta)*cos(theta)];
+    aDot = T\W;
+    dphi = aDot(1); dtheta = aDot(2); dpsi = aDot(3);
+end
 
 function b = isCaptured(zd, z)
     p = z(1:3); pd = zd(1:3);

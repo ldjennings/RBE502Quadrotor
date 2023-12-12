@@ -24,7 +24,8 @@ u = ones(4,1) * (m*g)/4;
 
 %% Solving the initial-value problem
 t2 = 20;
-t = linspace(0, t2, t2*200);
+dt = 1/200;
+t = linspace(0, t2, t2/dt);
 
 [t,z] = ode45(@(t,z) quadrotor(t, z, u, p, r, n), t, z0);
 
@@ -119,6 +120,9 @@ for i=1:4
         'Parent', animation_axes);
 end
 
+UAV = plot3(xd(1), yd(1), zd(1), 'ro', 'MarkerSize', 8, 'MarkerFaceColor', 'r', 'Parent', animation_axes);
+
+
 tic;
 for k=1:length(t)
     
@@ -137,6 +141,9 @@ for k=1:length(t)
     set(body, 'XData', [ctr([1 3],1); NaN; ctr([2 4],1)], ...
         'YData', [ctr([1 3],2); NaN; ctr([2 4],2)],...
         'ZData', [ctr([1 3],3); NaN; ctr([2 4],3)] );
+
+    set(UAV, 'XData', xd(k), 'YData', yd(k), 'ZData', zd(k));
+
     pause(t(k)-toc);
     pause(0.01);
 end
