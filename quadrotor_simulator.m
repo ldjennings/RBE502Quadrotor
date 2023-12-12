@@ -14,7 +14,7 @@ p = [g l m I mu sigma];
 
 % Initial conditions
 %     x y z phi theta psi Vx Vy Vz W1 W2 W3
-z0 = [0 0  1  0    0  0  0  0  0  0  0  0]';
+z0 = [0 0  0  0    0  0  0  0  0  0  0  0]';
 
 
 r = [0; 0; 0;];
@@ -70,16 +70,17 @@ grid on;
 
 %% Animation
 
-% Preallocate arrays for efficiency
+% Preallocate arrays 
 xd = zeros(size(t));
 yd = zeros(size(t));
 zd = zeros(size(t));
 
-% Compute the trajectory
+
 for k = 1:length(t)
-    xd(k) = 0.5 * cos(t(k)/2);
-    yd(k) = 0.5 * sin(t(k)/2);
-    zd(k) = 2 + t(k)/10;
+    p = UAV_Trajectory(t(k));
+    xd(k) = p(1);
+    yd(k) = p(2);
+    zd(k) = p(3);
 end
 
 animation_fig = figure;
@@ -95,7 +96,11 @@ animation_axes = axes('Parent', animation_fig,...
     'box','on','Xgrid','on','Ygrid','on','Zgrid','on',...
     'TickLabelInterpreter','LaTeX','FontSize',14);
 
-plot3(xd, yd, zd, 'LineStyle', '-', 'Color', 'b', 'LineWidth', 2, 'Parent',animation_axes);
+plot3(xd, yd, zd, 'LineStyle', '-', 'Color', "#0072BD", 'LineWidth', 2, 'Parent',animation_axes);
+plot3(z(:,1), z(:,2), z(:,3), 'LineStyle', '-.', 'Color', "#77AC30", 'LineWidth', 2, 'Parent',animation_axes);
+xlim([-5, 5]); % Set x-axis limits
+ylim([-5, 5]); % Set y-axis limits
+zlim([0, 10]);     % Set z-axis limits
 
 view(animation_axes, 3);
 

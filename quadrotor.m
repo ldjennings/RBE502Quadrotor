@@ -48,12 +48,27 @@ end
 
 function u = controller(t, Z, p)
     % Trajectory
-    zd =    2 + t/10; z = Z(3); dzd =         1/10; dz = Z(9); ddzd =           0;
-    yd = .5*sin(t/2); y = Z(2); dyd =   cos(t/2)/4; dy = Z(8); ddyd = -sin(t/2)/8;
-    xd = .5*cos(t/2); x = Z(1); dxd =  -sin(t/2)/4; dx = Z(7); ddxd = -cos(t/2)/8;
-    % zd = 1; z = Z(3); dzd = 0; dz = Z(9); ddzd = 0;
-    % yd = 0; y = Z(2); dyd = 0; dy = Z(8); ddyd = 0;
-    % xd = 0; x = Z(1); dxd = 0; dx = Z(7); ddxd = 0;
+    % zd =    2 + t/10; z = Z(3); dzd =         1/10; dz = Z(9); ddzd =           0;
+    % yd = .5*sin(t/2); y = Z(2); dyd =   cos(t/2)/4; dy = Z(8); ddyd = -sin(t/2)/8;
+    % xd = .5*cos(t/2); x = Z(1); dxd =  -sin(t/2)/4; dx = Z(7); ddxd = -cos(t/2)/8;
+    x = Z(1); dx = Z(7);
+    y = Z(2); dy = Z(8);
+    z = Z(3); dz = Z(9);
+    
+
+    yt = UAV_Trajectory(t);
+ 
+    [Pnext, V, ~] = predictNextState(yt);
+    
+    Ka = 0;
+    xd = Pnext(1); dxd =  V(1); ddxd = Ka*sat(xd - x, -1, 1);
+    yd = Pnext(2); dyd =  V(2); ddyd = Ka*sat(yd - y, -1, 1);
+    zd = Pnext(3); dzd =  V(3); ddzd = Ka*sat(zd - z, -1, 1);
+
+
+    if(isCaptured(yt, Z))
+        fprintf("UAV captured\n")
+    end
     
     phi = Z(4); theta = Z(5); psi = Z(6);
     % w1 = Z(10); w2 = Z(11);   w3 = Z(12);
@@ -67,6 +82,7 @@ function u = controller(t, Z, p)
 
     g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
 
+
     z_lambda = 1; z_K = 3; z_n = 1;
     kp = 1;
     kd = 2.5;
@@ -74,41 +90,26 @@ function u = controller(t, Z, p)
     phi_lambda   = 2;          phi_K   =  8;     phi_n   = 1;
     theta_lambda = phi_lambda; theta_K =  phi_K; theta_n = 1;
     psi_lambda   = 1; psi_K   = 1; psi_n   = 1;
-    % phi_lambda   = 5; phi_K   = 100; phi_n   = .3;
-    % theta_lambda = 5; theta_K = 100; theta_n = .3;
-    % psi_lambda   =  5; psi_K   =  100; psi_n   = .3;
+
 
     sz = (dzd - dz) + z_lambda*(zd - z);
 
     U1 = ((ddzd + g + z_lambda*(zd-z)) + z_K*sz/(abs(sz) + z_n))*m/(cos(phi)*cos(theta));
 
-    Emax = 1.1;
+    Emax = 1;
     Fx = m * (ddxd + kd * (dxd - dx) + kp * sat(xd - x,-Emax,Emax));
 	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-Emax,Emax));
 
 
-    degMax = 20 *pi/180;
+    degMax = 30 * pi/180;
 
     phid = asin(sat(-Fy / U1,-degMax,degMax));
     thetad = asin(sat( Fx / U1,-degMax,degMax));
     psid = 0;
 
-    
-
-
     ephi   = phid   - phi;
     etheta = thetad - theta;
     epsi   = psid   - psi;
-
-
-    % esd = [phid thetad psid];
-    % esb = [phi theta psi];
-    % ebd = space_to_body(esb, esd);
-    % 
-    % ephi = wrapToPi(0 - ebd(1));
-    % etheta = wrapToPi(0 - ebd(2));
-    % epsi = wrapToPi(0 - ebd(3));
-
 
 
     % Phi controller 
@@ -139,31 +140,32 @@ function u = controller(t, Z, p)
 
     u = A\U;
 
-    % u = repmat(U1/4,4,1)
 end
 
+function [p, v, a] = predictNextState(P1)
+    persistent previous2;
+    if isempty(previous2)
+        fprintf("I'm empty!\n")
+        previous2 = repmat(P1, 1, 2);
+    end
 
-function ebd = space_to_body(esb, esd)
-    % Rsb = intrinsic_zyx(esb);
-    % Rsd = extrinsic_xyz(esd);
-    Rsb = eul2rotm(esb);
-    Rsd = extrinsic_xyz(esd);
+    dt = 1/200;
+    V = (P1 - previous2(:,2))/dt;
+    a = (V - (previous2(:,2) - previous2(:,1)) / dt) / dt;
 
-    Rbd = Rsb\Rsd;
-
-    ebd = rotm2eul(Rbd,"XYZ")';
+    p = P1 + V * dt + .5 * a * dt^2;
+    v = V + a*dt;
     
+    % Updating the previous two states of the robot
+    previous2(:,2) = previous2(:,1);
+    previous2(:,1) = P1;
+
 end
 
 
-function R = intrinsic_zyx(ang)
-    phi = ang(1); theta = ang(2);psi = ang(3);
-    R = rotz(psi) * roty(theta) * rotx(phi);
-end
-
-function R = extrinsic_xyz(ang)
-    phi = ang(1); theta = ang(2);psi = ang(3);
-    R = rotx(phi)  * roty(theta) * rotz(psi);
+function b = isCaptured(zd, z)
+    p = z(1:3); pd = zd(1:3);
+    b = norm(p-pd,2) <= .1;
 end
 
 function y = sat(x, lowerbound, upperbound)
