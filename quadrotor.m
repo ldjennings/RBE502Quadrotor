@@ -70,24 +70,28 @@ function u = intercept_controller(t, Z, p)
     
     phi = Z(4); theta = Z(5); psi = Z(6);
     [dphi, dtheta, dpsi] = calcAngV(Z(10:12), Z(4:6));
+    dt = 1/200;
 
     %% Defining desired kinematics
-    yt = UAV_Trajectory(t);
- 
-    % [Pnext, ~, ~] = predictNextState(yt);
-    % 
-    % Ka = .5;
-    % 
-    % xd = Pnext(1); dxd =  0; ddxd = Ka*sat(xd - x, -1, 1);
-    % yd = Pnext(2); dyd =  0; ddyd = Ka*sat(yd - y, -1, 1);
-    % zd = Pnext(3); dzd =  0; ddzd = Ka*sat(zd - z, -1, 1);
+    yt_n = UAV_Trajectory(t);
+    yt_1 = UAV_Trajectory(t-dt);
+    yt_2 = UAV_Trajectory(t-2*dt);
+    
+    yt = [yt_2 yt_1 yt_n];
 
-    [V, A] = UAV_derivatives(t);
+    if t > dt * 4
+        [Pnext, V, A] = predictNextState(yt);
 
-    xd = yt(1); dxd =  V(1); ddxd = A(1);
-    yd = yt(2); dyd =  V(2); ddyd = A(2);
-    zd = yt(3); dzd =  V(3); ddzd = A(3);
 
+        xd = Pnext(1); dxd =  V(1); ddxd = A(1);
+        yd = Pnext(2); dyd =  V(2); ddyd = A(2);
+        zd = Pnext(3); dzd =  V(3); ddzd = A(3);
+    else
+        xd = Z(1); dxd =  0; ddxd = 0;
+        yd = Z(2); dyd =  0; ddyd = 0;
+        zd = Z(3); dzd =  0; ddzd = 0;
+    end
+    
  
     
     
@@ -153,23 +157,14 @@ function u = intercept_controller(t, Z, p)
 
 end
 
-function [p, v, a] = predictNextState(P1)
-    persistent previous2;
-    if isempty(previous2)
-        previous2 = repmat(P1, 1, 2);
-    end
-
+function [p, v, a] = predictNextState(Prev3)
+    P1 = Prev3(:,3); P2 = Prev3(:,2); P3 = Prev3(:,1);
     dt = 1/200;
-    V = (P1 - previous2(:,2))/dt;
-    a = (V - (previous2(:,2) - previous2(:,1)) / dt) / dt;
+    V = (P1 - P3)/(2*dt);
+    a = (P1 - 2*P2 + P3)/dt^2;
 
     p = P1 + V * dt + .5 * a * dt^2;
-    v = V + a*dt;
-    
-    % Updating the previous two states of the robot
-    previous2(:,2) = previous2(:,1);
-    previous2(:,1) = P1;
-
+    v = V + a*dt; 
 end
 
 
