@@ -1,5 +1,6 @@
 %% Initializations
 clc; clear; close all;
+clear functions;
 
 g = 9.81;   % The gravitational acceleration [m/s^2]
 l =  0.2;   % Distance from the center of mass to each rotor [m]
@@ -23,7 +24,7 @@ u = ones(4,1) * (m*g)/4;
 
 
 %% Solving the initial-value problem
-t2 = 20;
+t2 = 15;
 dt = 1/200;
 t = linspace(0, t2, t2/dt);
 
@@ -147,3 +148,5 @@ for k=1:length(t)
     pause(t(k)-toc);
     pause(0.01);
 end
+
+clear all;

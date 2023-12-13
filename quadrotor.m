@@ -31,7 +31,7 @@ captured = captured || isCaptured(UAV_Trajectory(t), z);
 
 
 if captured
-    fprintf("UAV captured\n")
+    fprintf("UAV captured, t = %f\n", t)
     u = intercept_controller(t, z,p);
 else
     u = intercept_controller(t, z,p);
@@ -82,7 +82,6 @@ function u = intercept_controller(t, Z, p)
     if t > dt * 4
         [Pnext, V, A] = predictNextState(yt);
 
-
         xd = Pnext(1); dxd =  V(1); ddxd = A(1);
         yd = Pnext(2); dyd =  V(2); ddyd = A(2);
         zd = Pnext(3); dzd =  V(3); ddzd = A(3);
@@ -97,13 +96,13 @@ function u = intercept_controller(t, Z, p)
     
     %% Defining Controller Gains
     
-    z_lambda = .3; z_K = 6; z_n = .5;
+    z_lambda = .5; z_K = 6; z_n = .5;
     kp = 1;
     kd = 2;
 
     phi_lambda   = 1.25;          phi_K   =  3;     phi_n   = 1;
     theta_lambda = phi_lambda; theta_K =  phi_K; theta_n = 1;
-    psi_lambda   = 1; psi_K   = 1; psi_n   = 1;
+    psi_lambda   = 1; psi_K   = 3; psi_n   = 1;
 
     %% Linear Position Controls
     sz = (dzd - dz) + z_lambda*(zd - z);
