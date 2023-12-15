@@ -24,7 +24,7 @@ u = ones(4,1) * (m*g)/4;
 
 
 %% Solving the initial-value problem
-t2 = 15;
+t2 = 40;
 dt = 1/200;
 t = linspace(0, t2, t2/dt);
 
@@ -53,7 +53,7 @@ grid on;
 plot(ax(3), t, z(:,4:6), 'LineWidth', 1.5);
 legend(ax(3), {'$\phi$', '$\theta$', '$\psi$'},...
     'Interpreter', 'LaTeX', 'FontSize', 14);
-title(ax(3), '\boldmath$\alpha$','Interpreter','LaTeX','FontSize',14);
+title(ax(3), '$\mathbf\alpha$','Interpreter','LaTeX','FontSize',14);
 grid on;
 
 plot(ax(2), t, z(:,7:9), 'LineWidth', 1.5);
@@ -65,7 +65,7 @@ grid on;
 plot(ax(4), t, z(:,10:12), 'LineWidth', 1.5);
 legend(ax(4), {'$\omega_1$', '$\omega_2$', '$\omega_3$'},...
     'Interpreter', 'LaTeX', 'FontSize', 14);
-title(ax(4), '\boldmath$\omega$','Interpreter','LaTeX','FontSize',14);
+title(ax(4), '$\mathbf\omega$','Interpreter','LaTeX','FontSize',14);
 grid on;
 
 
