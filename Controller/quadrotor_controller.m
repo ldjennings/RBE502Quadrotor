@@ -51,7 +51,7 @@ function u = intercept_controller(t, Z, p)
     
     
     z_lambda = .5; z_K = 6; z_n = .5;
-    kp = 1;
+    kp = 1.5;
     kd = 2;
 
     phi_lambda   = 1.25;          phi_K   =  3;     phi_n   = 1;

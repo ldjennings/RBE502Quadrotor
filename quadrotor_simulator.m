@@ -24,7 +24,7 @@ u = ones(4,1) * (m*g)/4;
 
 
 %% Solving the initial-value problem
-t2 = 40;
+t2 = 18;
 dt = 1/200;
 t = linspace(0, t2, t2/dt);
 
@@ -135,6 +135,7 @@ UAV = plot3(xd(1), yd(1), zd(1), 'ro', 'MarkerSize', 8, 'MarkerFaceColor', 'r', 
 
 tic;
 for k=1:length(t)
+
     
     R = [ cos(z(k,5))*cos(z(k,6)), sin(z(k,4))*sin(z(k,5))*cos(z(k,6)) - cos(z(k,4))*sin(z(k,6)), sin(z(k,4))*sin(z(k,6)) + cos(z(k,4))*sin(z(k,5))*cos(z(k,6));
           cos(z(k,5))*sin(z(k,6)), cos(z(k,4))*cos(z(k,6)) + sin(z(k,4))*sin(z(k,5))*sin(z(k,6)), cos(z(k,4))*sin(z(k,5))*sin(z(k,6)) - sin(z(k,4))*cos(z(k,6));
@@ -156,6 +157,15 @@ for k=1:length(t)
 
     pause(t(k)-toc);
     pause(0.01);
+
+    % if(k == 1)
+    %     gif('quadrotor_capture.gif');
+    % elseif(mod(k,10) == 0)
+    %     gif('DelayTime',1/800);
+    % end
 end
+
+
+
 
 clear all;
