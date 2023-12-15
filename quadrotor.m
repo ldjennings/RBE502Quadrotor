@@ -32,10 +32,10 @@ end
 captured = captured || isCaptured(UAV_Trajectory(t), z);
 
 if stabilized
-    u = return_controller(t, z, p);
-else if captured
-    u = stabilize_controller(t, z,p);
-    stabilized = stabilized || abs(z(7:9) - zeros(3,1)) < .01;
+    fprintf("Hi mom!\n")
+elseif captured
+    u = stabilize_controller(z,p);
+    stabilized = stabilized || all(abs(z(4:12) - zeros(9,1)) < .001);
 else
     u = intercept_controller(t, z,p);
 end
@@ -64,24 +64,14 @@ dz(10:12,1) = I\( rt + n - cross( z(10:12,1) , I * z(10:12,1) ) );
 end
 
 function u = intercept_controller(t, Z, p)
-    %% Extracting Parameters
-    g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
-
-    x = Z(1); dx = Z(7);
-    y = Z(2); dy = Z(8);
-    z = Z(3); dz = Z(9);
-    
-    phi = Z(4); theta = Z(5); psi = Z(6);
-    [dphi, dtheta, dpsi] = calcAngV(Z(10:12), Z(4:6));
-    dt = 1/200;
-
     %% Defining desired kinematics
+    dt = 1/200;
     yt_n = UAV_Trajectory(t);
     yt_1 = UAV_Trajectory(t-dt);
     yt_2 = UAV_Trajectory(t-2*dt);
     
     yt = [yt_2 yt_1 yt_n];
-
+    
     if t > dt * 4
         [Pnext, V, A] = predictNextState(yt);
 
@@ -92,10 +82,7 @@ function u = intercept_controller(t, Z, p)
         xd = Z(1); dxd =  0; ddxd = 0;
         yd = Z(2); dyd =  0; ddyd = 0;
         zd = Z(3); dzd =  0; ddzd = 0;
-    end
-    
- 
-    
+    end  
     
     %% Defining Controller Gains
     
@@ -107,72 +94,26 @@ function u = intercept_controller(t, Z, p)
     theta_lambda = phi_lambda; theta_K =  phi_K; theta_n = 1;
     psi_lambda   = 1; psi_K   = 3; psi_n   = 1;
 
-    %% Linear Position Controls
-    sz = (dzd - dz) + z_lambda*(zd - z);
-
-    U1 = ((ddzd + g + z_lambda*(zd-z)) + z_K*sz/(abs(sz) + z_n))*m/(cos(phi)*cos(theta));
-
-    Emax = 1.5;
-    Fx = m * (ddxd + kd * (dxd - dx) + kp * sat(xd - x,-Emax,Emax));
-	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-Emax,Emax));
-
+    dkine = [xd dxd ddxd;
+             yd dyd ddyd;
+             zd dzd ddzd;];
     
-    %% Orientation Controls
-    degMax = 35 * pi/180;
+    kg = [kp kd];
 
-    phid = asin(sat(-Fy / U1,-degMax,degMax));
-    thetad = asin(sat( Fx / U1,-degMax,degMax));
-    psid = 0;
-
-    ephi   = phid   - phi;
-    etheta = thetad - theta;
-    epsi   = psid   - psi;
+    smc_g = [z_lambda z_K, z_n;
+             phi_lambda phi_K phi_n;
+             theta_lambda theta_K theta_n;
+             psi_lambda psi_K psi_n;];
 
 
-    % Phi controller 
-    sphi = (0 - dphi) + phi_lambda*ephi;
-    U2 = (0 - dtheta*dpsi*(I22-I33)/I11) + phi_lambda*(0 - dphi) + ...
-     phi_K*sphi/(abs(sphi) + phi_n);
-
-    % Theta controller 
-    stheta = (0 - dtheta) + theta_lambda*etheta;
-    U3 = (0 + dphi*dpsi*(I11-I33)/I22) + theta_lambda*(0 - dtheta) + ...
-         theta_K*stheta/(abs(stheta) + theta_n);
-
-    spsi = (0 - dpsi) + psi_lambda*epsi;
-    U4 = (0 - dphi*dtheta*(I11-I22)/I33) + psi_lambda*(0 - dpsi) + ...
-        + psi_K*spsi/(abs(spsi) + psi_n);
-
-    U = [U1 U2 U3 U4]';
-    
-
-    %% Calculating individual control inputs
-    length_11 = l/I11;
-    length_22 = l/I22;
-    sigma_33 = sigma/I33;
-    A = [         1         1         1          1;
-                  0 length_11         0 -length_11;
-         -length_22         0 length_22          0;
-           sigma_33 -sigma_33  sigma_33 -sigma_33;];
-
-    u = A\U;
+    u = smc_controller(Z,p,dkine,kg, smc_g);
 
 end
 
-function u = stabilize_controller(t, Z, p)
-    %% Extracting Parameters
-    g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
-
-    x = Z(1); dx = Z(7);
-    y = Z(2); dy = Z(8);
-    z = Z(3); dz = Z(9);
-    
-    phi = Z(4); theta = Z(5); psi = Z(6);
-    [dphi, dtheta, dpsi] = calcAngV(Z(10:12), Z(4:6));
-    
-    xd = x; dxd =  0; ddxd = 0;
-    yd = y; dyd =  0; ddyd = 0;
-    zd = z; dzd =  0; ddzd = 0;
+function u = stabilize_controller(Z, p)    
+    xd = Z(1); dxd =  0; ddxd = 0;
+    yd = Z(2); dyd =  0; ddyd = 0;
+    zd = Z(3); dzd =  0; ddzd = 0;
     
     %% Defining Controller Gains
     
@@ -184,134 +125,97 @@ function u = stabilize_controller(t, Z, p)
     theta_lambda = phi_lambda; theta_K =  phi_K; theta_n = phi_n;
     psi_lambda   = 1; psi_K   = 5; psi_n   = 1.5;
 
-    %% Linear Position Controls
-    sz = (dzd - dz) + z_lambda*(zd - z);
-
-    U1 = ((ddzd + g + z_lambda*(zd-z)) + z_K*sz/(abs(sz) + z_n))*m/(cos(phi)*cos(theta));
-
-    Emax = 1;
-    Fx = m * (ddxd + kd * (dxd - dx) + kp * sat(xd - x,-Emax,Emax));
-	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-Emax,Emax));
-
+    dkine = [xd dxd ddxd;
+             yd dyd ddyd;
+             zd dzd ddzd;];
     
-    %% Orientation Controls
-    degMax = 35 * pi/180;
+    kg = [kp kd];
 
-    phid = asin(sat(-Fy / U1,-degMax,degMax));
-    thetad = asin(sat( Fx / U1,-degMax,degMax));
-    psid = 0;
-
-    ephi   = phid   - phi;
-    etheta = thetad - theta;
-    epsi   = psid   - psi;
+    smc_g = [z_lambda z_K, z_n;
+             phi_lambda phi_K phi_n;
+             theta_lambda theta_K theta_n;
+             psi_lambda psi_K psi_n;];
 
 
-    % Phi controller 
-    sphi = (0 - dphi) + phi_lambda*ephi;
-    U2 = (0 - dtheta*dpsi*(I22-I33)/I11) + phi_lambda*(0 - dphi) + ...
-     phi_K*sphi/(abs(sphi) + phi_n);
-
-    % Theta controller 
-    stheta = (0 - dtheta) + theta_lambda*etheta;
-    U3 = (0 + dphi*dpsi*(I11-I33)/I22) + theta_lambda*(0 - dtheta) + ...
-         theta_K*stheta/(abs(stheta) + theta_n);
-    
-    % Psi controller
-    spsi = (0 - dpsi) + psi_lambda*epsi;
-    U4 = (0 - dphi*dtheta*(I11-I22)/I33) + psi_lambda*(0 - dpsi) + ...
-        + psi_K*spsi/(abs(spsi) + psi_n);
-
-    U = [U1 U2 U3 U4]';
-    
-
-    %% Calculating individual control inputs
-    length_11 = l/I11;
-    length_22 = l/I22;
-    sigma_33 = sigma/I33;
-    A = [         1         1         1          1;
-                  0 length_11         0 -length_11;
-         -length_22         0 length_22          0;
-           sigma_33 -sigma_33  sigma_33 -sigma_33;];
-
-    u = A\U;
+    u = smc_controller(Z,p,dkine,kg, smc_g);    
 end
 
-    function u = return_controller(t, Z, p)
-    %% Extracting Parameters
-    g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
-
-    x = 0; dx = Z(7);
-    y = 0; dy = Z(8);
-    z = 0; dz = Z(9);
-    
-    phi = Z(4); theta = Z(5); psi = Z(6);
-    [dphi, dtheta, dpsi] = calcAngV(Z(10:12), Z(4:6));
-    
-    xd = x; dxd =  0; ddxd = 0;
-    yd = y; dyd =  0; ddyd = 0;
-    zd = z; dzd =  0; ddzd = 0;
-    
-    %% Defining Controller Gains
-    
-    z_lambda = .8; z_K = 6; z_n = 1;
-    kp = .3;
-    kd = 1;
-
-    phi_lambda   = 2;          phi_K   =  8;     phi_n   = 1;
-    theta_lambda = phi_lambda; theta_K =  phi_K; theta_n = phi_n;
-    psi_lambda   = 1; psi_K   = 5; psi_n   = 1.5;
-
-    %% Linear Position Controls
-    sz = (dzd - dz) + z_lambda*(zd - z);
-
-    U1 = ((ddzd + g + z_lambda*(zd-z)) + z_K*sz/(abs(sz) + z_n))*m/(cos(phi)*cos(theta));
-
-    Emax = 1;
-    Fx = m * (ddxd + kd * (dxd - dx) + kp * sat(xd - x,-Emax,Emax));
-	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-Emax,Emax));
-
-    
-    %% Orientation Controls
-    degMax = 35 * pi/180;
-
-    phid = asin(sat(-Fy / U1,-degMax,degMax));
-    thetad = asin(sat( Fx / U1,-degMax,degMax));
-    psid = 0;
-
-    ephi   = phid   - phi;
-    etheta = thetad - theta;
-    epsi   = psid   - psi;
-
-
-    % Phi controller 
-    sphi = (0 - dphi) + phi_lambda*ephi;
-    U2 = (0 - dtheta*dpsi*(I22-I33)/I11) + phi_lambda*(0 - dphi) + ...
-     phi_K*sphi/(abs(sphi) + phi_n);
-
-    % Theta controller 
-    stheta = (0 - dtheta) + theta_lambda*etheta;
-    U3 = (0 + dphi*dpsi*(I11-I33)/I22) + theta_lambda*(0 - dtheta) + ...
-         theta_K*stheta/(abs(stheta) + theta_n);
-    
-    % Psi controller
-    spsi = (0 - dpsi) + psi_lambda*epsi;
-    U4 = (0 - dphi*dtheta*(I11-I22)/I33) + psi_lambda*(0 - dpsi) + ...
-        + psi_K*spsi/(abs(spsi) + psi_n);
-
-    U = [U1 U2 U3 U4]';
-    
-
-    %% Calculating individual control inputs
-    length_11 = l/I11;
-    length_22 = l/I22;
-    sigma_33 = sigma/I33;
-    A = [         1         1         1          1;
-                  0 length_11         0 -length_11;
-         -length_22         0 length_22          0;
-           sigma_33 -sigma_33  sigma_33 -sigma_33;];
-
-    u = A\U;
-end
+%     function u = return_controller(t, Z, p)
+%     %% Extracting Parameters
+%     g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
+% 
+%     x = 0; dx = Z(7);
+%     y = 0; dy = Z(8);
+%     z = 0; dz = Z(9);
+% 
+%     phi = Z(4); theta = Z(5); psi = Z(6);
+%     [dphi, dtheta, dpsi] = calcAngV(Z(10:12), Z(4:6));
+% 
+%     xd = x; dxd =  0; ddxd = 0;
+%     yd = y; dyd =  0; ddyd = 0;
+%     zd = z; dzd =  0; ddzd = 0;
+% 
+%     %% Defining Controller Gains
+% 
+%     z_lambda = .8; z_K = 6; z_n = 1;
+%     kp = .3;
+%     kd = 1;
+% 
+%     phi_lambda   = 2;          phi_K   =  8;     phi_n   = 1;
+%     theta_lambda = phi_lambda; theta_K =  phi_K; theta_n = phi_n;
+%     psi_lambda   = 1; psi_K   = 5; psi_n   = 1.5;
+% 
+%     %% Linear Position Controls
+%     sz = (dzd - dz) + z_lambda*(zd - z);
+% 
+%     U1 = ((ddzd + g + z_lambda*(zd-z)) + z_K*sz/(abs(sz) + z_n))*m/(cos(phi)*cos(theta));
+% 
+%     Emax = 1;
+%     Fx = m * (ddxd + kd * (dxd - dx) + kp * sat(xd - x,-Emax,Emax));
+% 	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-Emax,Emax));
+% 
+% 
+%     %% Orientation Controls
+%     degMax = 35 * pi/180;
+% 
+%     phid = asin(sat(-Fy / U1,-degMax,degMax));
+%     thetad = asin(sat( Fx / U1,-degMax,degMax));
+%     psid = 0;
+% 
+%     ephi   = phid   - phi;
+%     etheta = thetad - theta;
+%     epsi   = psid   - psi;
+% 
+% 
+%     % Phi controller 
+%     sphi = (0 - dphi) + phi_lambda*ephi;
+%     U2 = (0 - dtheta*dpsi*(I22-I33)/I11) + phi_lambda*(0 - dphi) + ...
+%      phi_K*sphi/(abs(sphi) + phi_n);
+% 
+%     % Theta controller 
+%     stheta = (0 - dtheta) + theta_lambda*etheta;
+%     U3 = (0 + dphi*dpsi*(I11-I33)/I22) + theta_lambda*(0 - dtheta) + ...
+%          theta_K*stheta/(abs(stheta) + theta_n);
+% 
+%     % Psi controller
+%     spsi = (0 - dpsi) + psi_lambda*epsi;
+%     U4 = (0 - dphi*dtheta*(I11-I22)/I33) + psi_lambda*(0 - dpsi) + ...
+%         + psi_K*spsi/(abs(spsi) + psi_n);
+% 
+%     U = [U1 U2 U3 U4]';
+% 
+% 
+%     %% Calculating individual control inputs
+%     length_11 = l/I11;
+%     length_22 = l/I22;
+%     sigma_33 = sigma/I33;
+%     A = [         1         1         1          1;
+%                   0 length_11         0 -length_11;
+%          -length_22         0 length_22          0;
+%            sigma_33 -sigma_33  sigma_33 -sigma_33;];
+% 
+%     u = A\U;
+% end
 
 
 function [p, v, a] = predictNextState(Prev3)
@@ -326,14 +230,7 @@ end
 
 
 
-function [dphi, dtheta, dpsi] = calcAngV(W, alpha)
-    phi = alpha(1); theta = alpha(2); 
-    T = [1 0 -sin(theta);
-         0 cos(phi) sin(phi)*cos(theta);
-         0 -sin(phi) cos(theta)*cos(theta)];
-    aDot = T\W;
-    dphi = aDot(1); dtheta = aDot(2); dpsi = aDot(3);
-end
+
 
 function b = isCaptured(zd, z)
     p = z(1:3); pd = zd(1:3);
