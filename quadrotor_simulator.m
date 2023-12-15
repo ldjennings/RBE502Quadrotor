@@ -15,7 +15,7 @@ p = [g l m I mu sigma];
 
 % Initial conditions
 %     x y z phi theta psi Vx Vy Vz W1 W2 W3
-z0 = [0 0  0  0    0  0  0  0  0  0  0  0]';
+z0 = [0 1  1  0    0  0  0  0  0  0  0  0]';
 
 
 r = [0; 0; 0;];
@@ -24,7 +24,7 @@ u = ones(4,1) * (m*g)/4;
 
 
 %% Solving the initial-value problem
-t2 = 15;
+t2 = 25;
 dt = 1/200;
 t = linspace(0, t2, t2/dt);
 

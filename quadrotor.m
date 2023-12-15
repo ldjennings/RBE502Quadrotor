@@ -30,9 +30,9 @@ end
 captured = captured || isCaptured(UAV_Trajectory(t), z);
 
 
-if captured
-    fprintf("UAV captured, t = %f\n", t)
-    u = intercept_controller(t, z,p);
+if true
+    % fprintf("UAV captured, t = %f\n", t)
+    u = return_controller(t, z,p);
 else
     u = intercept_controller(t, z,p);
 end
@@ -154,6 +154,94 @@ function u = intercept_controller(t, Z, p)
 
     u = A\U;
 
+end
+
+function u = return_controller(t, Z, p)
+        %% Extracting Parameters
+    g = p(1); l = p(2); m = p(3); I11 = p(4); I22 = p(5); I33 = p(6); sigma = p(8);
+
+    x = Z(1); dx = Z(7);
+    y = Z(2); dy = Z(8);
+    z = Z(3); dz = Z(9);
+    
+    phi = Z(4); theta = Z(5); psi = Z(6);
+    [dphi, dtheta, dpsi] = calcAngV(Z(10:12), Z(4:6));
+    da = [dphi, dtheta, dpsi]';
+    w1 = Z(10); w2 = Z(11); w3 = Z(12);
+
+    xd = 0; dxd =  0; ddxd = 0;
+    yd = 0; dyd =  0; ddyd = 0;
+    zd = 1; dzd =  0; ddzd = 0;
+
+
+    %% Defining Controller Gains
+    
+    z_lambda = 1; z_K = 1; z_n = 1;
+    kp = 1;
+    kd = 2;
+
+    phi_lambda   = 2;          phi_K   =  10;     phi_n   = 1;
+    theta_lambda = phi_lambda; theta_K =  phi_K; theta_n = 1;
+    psi_lambda   = 1; psi_K   = 1; psi_n   = 1;
+
+    mat_lambda = diag([phi_lambda, theta_lambda, psi_lambda]);
+
+    %% Linear Position Controls
+    sz = (dzd - dz) + z_lambda*(zd - z);
+
+    U1 = ((ddzd + g + z_lambda*(zd-z)) + z_K*sz/(abs(sz) + z_n))*m/(cos(phi)*cos(theta));
+
+    Emax = 1.5;
+    Fx = m * (ddxd + kd * (dxd - dx) + kp * sat(xd - x,-Emax,Emax));
+	Fy = m * (ddyd + kd * (dyd - dy) + kp * sat(yd - y,-Emax,Emax));
+
+    %% Orientation Controls
+    degMax = 35 * pi/180;
+
+    phid = asin(sat(-Fy / U1,-degMax,degMax));
+    thetad = asin(sat( Fx / U1,-degMax,degMax));
+    psid = 0;
+
+    ephi   = phid   - phi;
+    etheta = thetad - theta;
+    epsi   = psid   - psi;
+
+    e = [ephi etheta epsi]';
+    de = zeros(3,1) - da;
+
+    ddad = zeros(3,1);
+
+    s = de + mat_lambda*e;
+    
+    Wdyn = [w2*w3*(I22-I33)/I11;
+            -w1*w3*(I11-I33)/I22;
+            w1*w2*(I11-I22)/I33;];
+
+    T = [1 0 -sin(theta);
+         0 cos(phi) sin(phi)*cos(theta);
+         0 -sin(phi) cos(theta)*cos(theta)];
+
+    Tdot = tdot(phi, theta, dphi, dtheta);
+
+    U24 = T*(ddad + mat_lambda*de) - Wdyn + Tdot*da;
+    
+    U2 = U24(1) + phi_K*s(1)/(abs(s(1)) + phi_n);
+    U3 = U24(2) + theta_K*s(2)/(abs(s(2)) + theta_n);
+    U4 = U24(3) + psi_K*s(3)/(abs(s(3)) + psi_n);
+
+    U = [U1 U2 U3 U4]';
+    
+
+    %% Calculating individual control inputs
+    length_11 = l/I11;
+    length_22 = l/I22;
+    sigma_33 = sigma/I33;
+    A = [         1         1         1          1;
+                  0 length_11         0 -length_11;
+         -length_22         0 length_22          0;
+           sigma_33 -sigma_33  sigma_33 -sigma_33;];
+
+    u = A\U;
 end
 
 function [p, v, a] = predictNextState(Prev3)
