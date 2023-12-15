@@ -10,7 +10,7 @@ mu = 3.0;   % Maximum thrust of each rotor [N]
 sigma = 0.01; % The proportionality constant relating thrust to torque [m]
 
 
-p = [g l m I mu sigma];
+pd = [g l m I mu sigma];
 
 
 % Initial conditions
@@ -28,7 +28,7 @@ t2 = 40;
 dt = 1/200;
 t = linspace(0, t2, t2/dt);
 
-[t,z] = ode45(@(t,z) quadrotor(t, z, u, p, r, n), t, z0);
+[t,z] = ode45(@(t,z) quadrotor(t, z, u, pd, r, n), t, z0);
 
 
 %% Plotting the results
@@ -77,12 +77,21 @@ xd = zeros(size(t));
 yd = zeros(size(t));
 zd = zeros(size(t));
 
-
+iscaptured = false;
 for k = 1:length(t)
-    p = UAV_Trajectory(t(k));
-    xd(k) = p(1);
-    yd(k) = p(2);
-    zd(k) = p(3);
+
+    if iscaptured
+        xd(k) = z(k,1);
+        yd(k) = z(k,2);
+        zd(k) = z(k,3);
+    else
+        pd = UAV_Trajectory(t(k));
+        xd(k) = pd(1);
+        yd(k) = pd(2);
+        zd(k) = pd(3);
+        p = z(k,1:3)';
+        iscaptured = norm(p-pd,2) <= .1;
+    end
 end
 
 animation_fig = figure;
